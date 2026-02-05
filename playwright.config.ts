@@ -24,10 +24,21 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /passkey/,
     },
     {
       name: "Mobile Chrome",
       use: { ...devices["Pixel 5"] },
+      testIgnore: /passkey/,
+    },
+    {
+      name: "passkey",
+      use: {
+        channel: "chrome",
+        headless: false,
+      },
+      testMatch: /passkey/,
+      timeout: 120_000,
     },
   ],
 

@@ -12,10 +12,19 @@ pub fn build_webauthn(port: u16) -> Result<Webauthn, webauthn_rs::prelude::Webau
     builder.build()
 }
 
+/// A pending registration bundles the WebAuthn ceremony state with the user
+/// metadata needed to create the account when registration finishes.
+pub struct PendingRegistration {
+    pub reg_state: PasskeyRegistration,
+    pub user_id: String,
+    pub username: String,
+    pub display_name: String,
+}
+
 /// Ephemeral in-memory store for WebAuthn registration/authentication ceremonies.
 /// Each entry is keyed by a random ceremony ID and expires after 5 minutes.
 pub struct CeremonyStore {
-    registrations: HashMap<String, (Instant, PasskeyRegistration)>,
+    registrations: HashMap<String, (Instant, PendingRegistration)>,
     authentications: HashMap<String, (Instant, PasskeyAuthentication)>,
 }
 
@@ -27,15 +36,15 @@ impl CeremonyStore {
         }
     }
 
-    /// Store a registration ceremony state. Clears any stale entries first.
-    pub fn insert_registration(&mut self, id: String, state: PasskeyRegistration) {
+    /// Store a pending registration (ceremony state + user metadata).
+    pub fn insert_registration(&mut self, id: String, pending: PendingRegistration) {
         self.clear_stale();
-        self.registrations.insert(id, (Instant::now(), state));
+        self.registrations.insert(id, (Instant::now(), pending));
     }
 
-    /// Retrieve and remove a registration ceremony state.
-    pub fn take_registration(&mut self, id: &str) -> Option<PasskeyRegistration> {
-        self.registrations.remove(id).map(|(_, state)| state)
+    /// Retrieve and remove a pending registration.
+    pub fn take_registration(&mut self, id: &str) -> Option<PendingRegistration> {
+        self.registrations.remove(id).map(|(_, pending)| pending)
     }
 
     /// Store an authentication ceremony state. Clears any stale entries first.

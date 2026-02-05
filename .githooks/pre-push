@@ -36,7 +36,7 @@ UNIT_PID=$!
   sleep 2
 
   # Run Playwright (chromium only for speed)
-  npx playwright test --project=chromium --retries=2 > /tmp/salita-e2e-output.txt 2>&1
+  npx playwright test --project=chromium --project=passkey --retries=0 > /tmp/salita-e2e-output.txt 2>&1
   E2E_RESULT=$?
 
   # Cleanup

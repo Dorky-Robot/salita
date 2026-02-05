@@ -1,13 +1,14 @@
 use askama::Template;
 use axum::extract::State;
 use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{AppendHeaders, IntoResponse, Redirect, Response};
 use axum::Json;
 use rusqlite::params;
 use serde::Deserialize;
 use webauthn_rs::prelude::*;
 
 use crate::auth::session;
+use crate::auth::webauthn::PendingRegistration;
 use crate::error::{AppError, AppResult};
 use crate::routes::home::Html;
 use crate::state::AppState;
@@ -125,23 +126,24 @@ pub async fn setup_start(
         None, // no existing credentials to exclude
     )?;
 
-    // Store ceremony state
+    // Store ceremony state + user metadata together in the CeremonyStore.
+    // Only the plain ceremony ID goes into the cookie (no JSON — raw JSON
+    // characters are invalid in cookie values per RFC 6265).
     let ceremony_id = uuid::Uuid::now_v7().to_string();
     {
         let mut ceremonies = state.ceremonies.lock().await;
-        ceremonies.insert_registration(ceremony_id.clone(), reg_state);
+        ceremonies.insert_registration(
+            ceremony_id.clone(),
+            PendingRegistration {
+                reg_state,
+                user_id: user_id.to_string(),
+                username,
+                display_name,
+            },
+        );
     }
 
-    // We also need to remember the username/display_name/user_id for finish.
-    // Store them as a JSON cookie alongside the ceremony ID.
-    let pending_user = serde_json::json!({
-        "ceremony_id": ceremony_id,
-        "user_id": user_id.to_string(),
-        "username": username,
-        "display_name": display_name,
-    });
-
-    let ceremony_cookie_val = ceremony_cookie(&pending_user.to_string());
+    let ceremony_cookie_val = ceremony_cookie(&ceremony_id);
 
     let body = serde_json::to_string(&ccr)?;
 
@@ -163,34 +165,24 @@ pub async fn setup_finish(
 ) -> AppResult<Response> {
     let (parts, body) = request.into_parts();
 
-    // Parse the ceremony cookie
-    let ceremony_raw = get_cookie_value(&parts, "salita_ceremony")
+    // The cookie holds only the plain ceremony ID string.
+    let ceremony_id = get_cookie_value(&parts, "salita_ceremony")
         .ok_or_else(|| AppError::BadRequest("Missing ceremony cookie".into()))?;
 
-    // The cookie value is URL-encoded JSON; we need to parse it
-    let pending: serde_json::Value = serde_json::from_str(ceremony_raw)
-        .map_err(|_| AppError::BadRequest("Invalid ceremony cookie".into()))?;
-
-    let ceremony_id = pending["ceremony_id"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Invalid ceremony data".into()))?;
-    let user_id = pending["user_id"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Invalid ceremony data".into()))?;
-    let username = pending["username"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Invalid ceremony data".into()))?;
-    let display_name = pending["display_name"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("Invalid ceremony data".into()))?;
-
-    // Retrieve ceremony state
-    let reg_state = {
+    // Retrieve ceremony state + user metadata from the in-memory store.
+    let pending = {
         let mut ceremonies = state.ceremonies.lock().await;
         ceremonies
             .take_registration(ceremony_id)
             .ok_or_else(|| AppError::BadRequest("Ceremony expired or not found".into()))?
     };
+
+    let PendingRegistration {
+        reg_state,
+        user_id,
+        username,
+        display_name,
+    } = pending;
 
     // Parse the credential response from body
     let body_bytes = axum::body::to_bytes(body, 1024 * 64)
@@ -218,20 +210,20 @@ pub async fn setup_finish(
     )?;
 
     // Create session
-    let token = session::create_session(&state.db, user_id, state.config.auth.session_hours)?;
+    let token = session::create_session(&state.db, &user_id, state.config.auth.session_hours)?;
 
     let body = serde_json::json!({ "status": "ok" });
 
     Ok((
         StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "application/json".to_string()),
+        [(header::CONTENT_TYPE, "application/json".to_string())],
+        AppendHeaders([
             (
                 header::SET_COOKIE,
                 session_cookie(&token, state.config.auth.session_hours),
             ),
             (header::SET_COOKIE, clear_ceremony_cookie()),
-        ],
+        ]),
         serde_json::to_string(&body)?,
     )
         .into_response())
@@ -324,13 +316,15 @@ pub async fn login_finish(
         let mut passkey: Passkey = serde_json::from_str(passkey_json)
             .map_err(|e| AppError::Internal(format!("Failed to parse passkey: {}", e)))?;
 
-        if passkey.update_credential(&auth_result).unwrap_or(false) {
-            // Counter was updated; save back
-            let updated_json = serde_json::to_string(&passkey)?;
-            conn.execute(
-                "UPDATE passkey_credentials SET passkey_json = ?1 WHERE id = ?2",
-                params![updated_json, cred_id],
-            )?;
+        if let Some(changed) = passkey.update_credential(&auth_result) {
+            // Some(_) means the credential matched. Save back if anything changed.
+            if changed {
+                let updated_json = serde_json::to_string(&passkey)?;
+                conn.execute(
+                    "UPDATE passkey_credentials SET passkey_json = ?1 WHERE id = ?2",
+                    params![updated_json, cred_id],
+                )?;
+            }
             matched_user_id = Some(user_id.clone());
             break;
         }
@@ -345,14 +339,14 @@ pub async fn login_finish(
 
     Ok((
         StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "application/json".to_string()),
+        [(header::CONTENT_TYPE, "application/json".to_string())],
+        AppendHeaders([
             (
                 header::SET_COOKIE,
                 session_cookie(&token, state.config.auth.session_hours),
             ),
             (header::SET_COOKIE, clear_ceremony_cookie()),
-        ],
+        ]),
         serde_json::to_string(&body)?,
     )
         .into_response())

@@ -61,7 +61,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             host: "0.0.0.0".to_string(),
-            port: 3000,
+            port: 6969,
         }
     }
 }
@@ -134,7 +134,7 @@ mod tests {
     fn default_config_has_expected_values() {
         let config = Config::default();
         assert_eq!(config.server.host, "0.0.0.0");
-        assert_eq!(config.server.port, 3000);
+        assert_eq!(config.server.port, 6969);
         assert_eq!(config.auth.cookie_name, "salita_session");
         assert_eq!(config.auth.session_hours, 720);
         assert!(config.database.path.is_none());
@@ -175,7 +175,7 @@ mod tests {
         };
         let config = Config::load(&cli).unwrap();
         assert_eq!(config.server.host, "0.0.0.0");
-        assert_eq!(config.server.port, 3000);
+        assert_eq!(config.server.port, 6969);
         assert_eq!(config.db_path(), &tmp.path().join("salita.db"));
         assert_eq!(config.uploads_path(), &tmp.path().join("uploads"));
     }

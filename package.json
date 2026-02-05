@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "salita-e2e",
+  "description": "E2E tests for Salita (Playwright only — no Node.js runtime needed)",
+  "scripts": {
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:headed": "npx playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}

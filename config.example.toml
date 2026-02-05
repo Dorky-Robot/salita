@@ -1,0 +1,22 @@
+# Salita Configuration
+# Copy to ~/.salita/config.toml and customize
+
+[server]
+host = "0.0.0.0"
+port = 3000
+
+[database]
+# Path to SQLite database file
+# Default: ~/.salita/salita.db
+# path = "/path/to/salita.db"
+
+[storage]
+# Path for uploaded files
+# Default: ~/.salita/uploads/
+# path = "/path/to/uploads/"
+
+[auth]
+# Session cookie name
+cookie_name = "salita_session"
+# Session duration in hours
+session_hours = 720  # 30 days

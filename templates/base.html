@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Salita{% endblock %}</title>
+  <link rel="stylesheet" href="/assets/css/output.css">
+  <script src="/assets/js/htmx.min.js" defer></script>
+  <script src="/assets/js/app.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen">
+  {% block nav %}
+  <nav class="border-b border-stone-200 bg-white">
+    <div class="mx-auto max-w-4xl px-4 py-3 flex items-center justify-between">
+      <a href="/" class="text-lg font-semibold text-stone-900">Salita</a>
+      <div class="flex items-center gap-4 text-sm">
+        <a href="/stream" class="text-stone-600 hover:text-stone-900">Stream</a>
+        <a href="/social" class="text-stone-600 hover:text-stone-900">Social</a>
+        <a href="/services" class="text-stone-600 hover:text-stone-900">Services</a>
+      </div>
+    </div>
+  </nav>
+  {% endblock %}
+
+  <main class="mx-auto max-w-4xl px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-stone-200 mt-16">
+    <div class="mx-auto max-w-4xl px-4 py-6 text-center text-sm text-stone-400">
+      Salita — your home on the network
+    </div>
+  </footer>
+</body>
+</html>

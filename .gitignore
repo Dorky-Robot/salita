@@ -1,0 +1,32 @@
+# Build
+/target
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Environment / secrets
+.env
+.env.local
+*.pem
+
+# IDE
+.idea/
+.vscode/
+
+# Generated CSS (rebuilt by build.rs)
+assets/css/output.css
+
+# Node (Playwright only)
+/node_modules
+package-lock.json
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Data directory (runtime)
+/data/

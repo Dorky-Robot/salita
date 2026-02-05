@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-commit hook: fast checks before each commit
+# Full test suite runs on pre-push
+
+set -e
+
+echo "Running format check..."
+cargo fmt --check
+
+echo "Running clippy..."
+cargo clippy -- -D warnings
+
+echo "Running unit tests..."
+cargo test
+
+echo ""
+echo "All pre-commit checks passed"

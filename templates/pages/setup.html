@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Setup — Salita{% endblock %}
+
+{% block head %}
+<script src="/assets/js/passkey.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto py-16">
+  <h1 class="text-3xl font-bold text-stone-900 mb-2">Create Admin Account</h1>
+  <p class="text-stone-600 mb-8">Register a passkey to secure your server. You'll use Touch ID, Face ID, or a security key to sign in.</p>
+
+  <div class="card">
+    <div class="mb-4">
+      <label for="username" class="block text-sm font-medium text-stone-700 mb-1">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" required
+        class="w-full px-3 py-2 border border-stone-300 rounded-md text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:border-transparent">
+    </div>
+
+    <div class="mb-6">
+      <label for="display_name" class="block text-sm font-medium text-stone-700 mb-1">Display Name (optional)</label>
+      <input type="text" id="display_name" name="display_name"
+        class="w-full px-3 py-2 border border-stone-300 rounded-md text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:border-transparent">
+    </div>
+
+    <button onclick="registerPasskey()" class="btn-primary w-full">Register Passkey</button>
+    <p id="status" class="text-sm mt-2"></p>
+  </div>
+</div>
+{% endblock %}

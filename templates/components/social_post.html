@@ -1,0 +1,12 @@
+<article class="card mb-4">
+  <div class="flex items-center gap-3 mb-3">
+    <div class="w-8 h-8 rounded-full bg-stone-200"></div>
+    <div>
+      <span class="font-medium text-stone-900">{{ post.author_display_name }}</span>
+      <span class="text-sm text-stone-500">@{{ post.author_handle }}</span>
+      <span class="text-xs text-stone-400 ml-2">{{ post.posted_at }}</span>
+    </div>
+    <span class="ml-auto text-xs font-medium px-2 py-1 rounded bg-stone-100 text-stone-600">{{ post.platform }}</span>
+  </div>
+  <p class="text-stone-700 whitespace-pre-wrap">{{ post.body }}</p>
+</article>

@@ -2,6 +2,9 @@
 name = "salita"
 version = "0.1.0"
 edition = "2021"
+description = "A personal home server"
+license = "MIT"
+repository = "https://github.com/Dorky-Robot/salita"
 
 [dependencies]
 # Web framework

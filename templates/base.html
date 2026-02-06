@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Salita{% endblock %}</title>
   <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
   <script src="/assets/js/htmx.min.js" defer></script>
   <script src="/assets/js/app.js" defer></script>
   {% block head %}{% endblock %}
@@ -19,6 +21,15 @@
         <a href="/social">Social</a>
         <a href="/services">Services</a>
       </div>
+      <div class="nav__actions">
+        <button class="nav__btn" title="Connect a device"
+                hx-get="/connect/qr" hx-target="#modal-container" hx-swap="innerHTML">
+          <i class="ph ph-qr-code"></i>
+        </button>
+        <button class="nav__btn" title="Settings" disabled>
+          <i class="ph ph-gear-six"></i>
+        </button>
+      </div>
     </div>
   </nav>
   {% endblock %}
@@ -32,5 +43,7 @@
       Salita — your home on the network
     </div>
   </footer>
+
+  <div id="modal-container"></div>
 </body>
 </html>

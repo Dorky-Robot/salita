@@ -1,0 +1,16 @@
+<div class="modal-overlay" id="connect-modal" onclick="closeConnectModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal__header">
+      <span class="modal__title">Connect a device</span>
+      <button class="modal__close" onclick="closeConnectModal()"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal__body">
+      <div class="modal__qr">{{ qr_svg|safe }}</div>
+      <button class="modal__url-copy" onclick="copyLanUrl(this)" data-url="{{ lan_url }}">
+        <span>{{ lan_url }}</span>
+        <i class="ph ph-copy"></i>
+      </button>
+      <p class="modal__hint">Scan with your phone to open Salita</p>
+    </div>
+  </div>
+</div>

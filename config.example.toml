@@ -4,6 +4,10 @@
 [server]
 host = "0.0.0.0"
 port = 6969
+# Site URL for LAN access (used as the WebAuthn origin).
+# Set this to your .local hostname so passkeys work from other devices.
+# Default: http://localhost:{port}
+# site_url = "http://salita.local:6969"
 
 [database]
 # Path to SQLite database file

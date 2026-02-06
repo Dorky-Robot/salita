@@ -49,8 +49,10 @@ async fn main() -> anyhow::Result<()> {
     db::run_migrations(&pool)?;
 
     // Build WebAuthn instance
-    let webauthn = auth::webauthn::build_webauthn(config.server.port)
-        .expect("Failed to build WebAuthn instance");
+    let site_url = config.site_url();
+    tracing::info!("Site URL (WebAuthn origin): {}", site_url);
+    let webauthn =
+        auth::webauthn::build_webauthn(&site_url).expect("Failed to build WebAuthn instance");
 
     // Build app state
     let state = AppState {
@@ -65,7 +67,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(routes::home::index))
         .route("/assets/{*path}", get(routes::assets::serve))
         .merge(routes::auth::router())
-        .merge(routes::stream::router());
+        .merge(routes::stream::router())
+        .merge(routes::connect::router());
 
     // Test-only seed endpoint: creates a user + session, returns session cookie
     if std::env::var("SALITA_TEST_SEED").is_ok() {

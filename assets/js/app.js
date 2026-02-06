@@ -11,3 +11,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 4000);
   });
 });
+
+// Character counter for post compose textarea
+function updateCharCount(form) {
+  var textarea = form.querySelector('textarea[name="body"]');
+  var counter = form.querySelector('#char-count');
+  if (!textarea || !counter) return;
+  var remaining = 2000 - textarea.value.length;
+  counter.textContent = remaining;
+  if (remaining < 100) {
+    counter.className = 'text-xs text-orange-500 font-medium';
+  } else {
+    counter.className = 'text-xs text-stone-400';
+  }
+}

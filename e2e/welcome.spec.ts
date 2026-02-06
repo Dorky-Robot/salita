@@ -47,7 +47,7 @@ test.describe("Welcome page", () => {
     // Wait a moment for deferred scripts to load
     await page.waitForTimeout(1000);
 
-    expect(responses["/assets/css/output.css"]).toBe(200);
+    expect(responses["/assets/css/style.css"]).toBe(200);
     expect(responses["/assets/js/htmx.min.js"]).toBe(200);
     expect(responses["/assets/js/app.js"]).toBe(200);
   });

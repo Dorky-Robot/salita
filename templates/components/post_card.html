@@ -1,10 +1,56 @@
-<article class="card mb-4">
-  <div class="flex items-center gap-3 mb-3">
-    <div class="w-8 h-8 rounded-full bg-stone-200"></div>
-    <div>
-      <span class="font-medium text-stone-900">{{ post.username }}</span>
-      <span class="text-sm text-stone-400 ml-2">{{ post.created_at }}</span>
+<article id="post-{{ post.id }}" class="card">
+  <div class="post-header">
+    <div class="post-author">
+      <div class="avatar"></div>
+      <div>
+        <span class="post-author__name">{{ post.username }}</span>
+        <span class="post-author__time">{{ post.created_at }}</span>
+      </div>
     </div>
+    {% if post.can_delete %}
+    <button hx-delete="/stream/posts/{{ post.id }}"
+            hx-target="#post-{{ post.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this post?"
+            class="post-delete">delete</button>
+    {% endif %}
   </div>
-  <p class="text-stone-700 whitespace-pre-wrap">{{ post.body }}</p>
+  <p class="post-body">{{ post.body }}</p>
+
+  <div id="reactions-{{ post.id }}" class="reactions">
+    {% if let Some(_uid) = post.current_user %}
+    <button hx-post="/stream/posts/{{ post.id }}/reactions"
+            hx-vals='{"kind":"like"}'
+            hx-target="#reactions-{{ post.id }}"
+            hx-swap="outerHTML"
+            class="reaction-btn {% if post.user_liked %}reaction-btn--liked{% endif %}">
+      <svg class="reaction-icon" fill="{% if post.user_liked %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+      {% if post.like_count > 0 %}{{ post.like_count }}{% endif %}
+    </button>
+    <button hx-post="/stream/posts/{{ post.id }}/reactions"
+            hx-vals='{"kind":"heart"}'
+            hx-target="#reactions-{{ post.id }}"
+            hx-swap="outerHTML"
+            class="reaction-btn {% if post.user_hearted %}reaction-btn--hearted{% endif %}">
+      <svg class="reaction-icon" fill="{% if post.user_hearted %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      {% if post.heart_count > 0 %}{{ post.heart_count }}{% endif %}
+    </button>
+    {% else %}
+    <span class="reaction-btn">
+      <svg class="reaction-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+      {% if post.like_count > 0 %}{{ post.like_count }}{% endif %}
+    </span>
+    <span class="reaction-btn">
+      <svg class="reaction-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      {% if post.heart_count > 0 %}{{ post.heart_count }}{% endif %}
+    </span>
+    {% endif %}
+    <span class="reactions__count">{{ post.comment_count }} comment{% if post.comment_count != 1 %}s{% endif %}</span>
+  </div>
+
+  <div id="comments-{{ post.id }}"
+       hx-get="/stream/posts/{{ post.id }}/comments"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+  </div>
 </article>

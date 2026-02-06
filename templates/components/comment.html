@@ -1,8 +1,8 @@
-<div class="flex gap-3 py-3 border-t border-stone-100">
-  <div class="w-6 h-6 rounded-full bg-stone-200 flex-shrink-0"></div>
-  <div>
-    <span class="text-sm font-medium text-stone-900">{{ comment.username }}</span>
-    <span class="text-xs text-stone-400 ml-2">{{ comment.created_at }}</span>
-    <p class="text-sm text-stone-700 mt-1">{{ comment.body }}</p>
+<div class="comment">
+  <div class="avatar avatar--sm"></div>
+  <div class="comment__body-wrap">
+    <span class="comment__author">{{ comment.username }}</span>
+    <span class="comment__time">{{ comment.created_at }}</span>
+    <p class="comment__text">{{ comment.body }}</p>
   </div>
 </div>

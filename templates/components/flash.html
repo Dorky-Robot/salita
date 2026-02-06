@@ -1,9 +1,9 @@
 {% if let Some(flash) = flash %}
-<div data-flash class="mb-4 rounded-lg px-4 py-3 text-sm
+<div data-flash class="flash
   {% match flash.kind.as_str() %}
-    {% when "success" %}bg-green-50 text-green-800 border border-green-200
-    {% when "error" %}bg-red-50 text-red-800 border border-red-200
-    {% when _ %}bg-blue-50 text-blue-800 border border-blue-200
+    {% when "success" %}flash--success
+    {% when "error" %}flash--error
+    {% when _ %}flash--info
   {% endmatch %}
 ">
   {{ flash.message }}

@@ -3,22 +3,22 @@
 {% block title %}Welcome — Salita{% endblock %}
 
 {% block content %}
-<div class="text-center py-16">
-  <h1 class="text-4xl font-bold text-stone-900 mb-4">Welcome to Salita</h1>
-  <p class="text-lg text-stone-600 mb-8 max-w-xl mx-auto">
+<div class="hero">
+  <h1 class="hero__title">Welcome to Salita</h1>
+  <p class="hero__subtitle">
     Your personal home server. A quiet corner of the internet that belongs to you.
   </p>
 
   {% if user_count == 0 %}
-  <div class="card max-w-md mx-auto">
-    <h2 class="text-xl font-semibold mb-2">First-time Setup</h2>
-    <p class="text-stone-600 mb-4">No accounts exist yet. Create your admin account to get started.</p>
-    <a href="/auth/setup" class="btn-primary">Set Up Admin Account</a>
+  <div class="card setup-card">
+    <h2 class="setup-card__title">First-time Setup</h2>
+    <p class="setup-card__text">No accounts exist yet. Create your admin account to get started.</p>
+    <a href="/auth/setup" class="btn btn--primary">Set Up Admin Account</a>
   </div>
   {% else %}
-  <div class="flex gap-4 justify-center">
-    <a href="/stream" class="btn-primary">View Stream</a>
-    <a href="/auth/login" class="btn-secondary">Sign In</a>
+  <div class="hero__actions">
+    <a href="/stream" class="btn btn--primary">View Stream</a>
+    <a href="/auth/login" class="btn btn--secondary">Sign In</a>
   </div>
   {% endif %}
 </div>

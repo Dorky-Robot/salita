@@ -44,7 +44,7 @@ export default defineConfig({
 
   webServer: {
     command:
-      "cargo build --release && DATA_DIR=$(mktemp -d) && ./target/release/salita --port 3099 --data-dir $DATA_DIR",
+      "cargo build --release && DATA_DIR=$(mktemp -d) && SALITA_TEST_SEED=1 ./target/release/salita --port 3099 --data-dir $DATA_DIR",
     url: "http://localhost:3099",
     reuseExistingServer: !process.env.CI,
     timeout: 180 * 1000,

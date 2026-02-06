@@ -7,13 +7,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto py-16">
-  <h1 class="text-3xl font-bold text-stone-900 mb-2">Sign In</h1>
-  <p class="text-stone-600 mb-8">Use your passkey to sign in to Salita.</p>
+<div class="auth-page">
+  <h1 class="auth-page__title">Sign In</h1>
+  <p class="auth-page__subtitle">Use your passkey to sign in to Salita.</p>
 
   <div class="card">
-    <button onclick="authenticatePasskey()" class="btn-primary w-full">Sign in with Passkey</button>
-    <p id="status" class="text-sm mt-2"></p>
+    <button onclick="authenticatePasskey()" class="btn btn--primary btn--full">Sign in with Passkey</button>
+    <p id="status" class="auth-page__status"></p>
   </div>
 </div>
 {% endblock %}

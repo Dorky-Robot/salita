@@ -7,25 +7,25 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto py-16">
-  <h1 class="text-3xl font-bold text-stone-900 mb-2">Create Admin Account</h1>
-  <p class="text-stone-600 mb-8">Register a passkey to secure your server. You'll use Touch ID, Face ID, or a security key to sign in.</p>
+<div class="auth-page">
+  <h1 class="auth-page__title">Create Admin Account</h1>
+  <p class="auth-page__subtitle">Register a passkey to secure your server. You'll use Touch ID, Face ID, or a security key to sign in.</p>
 
   <div class="card">
-    <div class="mb-4">
-      <label for="username" class="block text-sm font-medium text-stone-700 mb-1">Username</label>
+    <div class="field">
+      <label for="username" class="field__label">Username</label>
       <input type="text" id="username" name="username" autocomplete="username" required
-        class="w-full px-3 py-2 border border-stone-300 rounded-md text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:border-transparent">
+        class="field__input">
     </div>
 
-    <div class="mb-6">
-      <label for="display_name" class="block text-sm font-medium text-stone-700 mb-1">Display Name (optional)</label>
+    <div class="field--lg">
+      <label for="display_name" class="field__label">Display Name (optional)</label>
       <input type="text" id="display_name" name="display_name"
-        class="w-full px-3 py-2 border border-stone-300 rounded-md text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:border-transparent">
+        class="field__input">
     </div>
 
-    <button onclick="registerPasskey()" class="btn-primary w-full">Register Passkey</button>
-    <p id="status" class="text-sm mt-2"></p>
+    <button onclick="registerPasskey()" class="btn btn--primary btn--full">Register Passkey</button>
+    <p id="status" class="auth-page__status"></p>
   </div>
 </div>
 {% endblock %}

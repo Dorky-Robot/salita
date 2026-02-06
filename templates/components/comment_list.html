@@ -1,0 +1,20 @@
+<div class="comments">
+  <div id="comment-items-{{ post_id }}">
+    {% for comment in comments %}
+    {% include "components/comment.html" %}
+    {% endfor %}
+  </div>
+
+  {% if let Some(_name) = username %}
+  <form hx-post="/stream/posts/{{ post_id }}/comments"
+        hx-target="#comment-items-{{ post_id }}"
+        hx-swap="beforeend"
+        hx-on::after-request="if(event.detail.successful) this.reset();"
+        class="comment-form">
+    <input type="text" name="body" maxlength="500"
+           placeholder="Add a comment..."
+           class="comment-form__input">
+    <button type="submit" class="comment-form__submit">Reply</button>
+  </form>
+  {% endif %}
+</div>

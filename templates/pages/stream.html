@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Stream — Salita{% endblock %}
+
+{% block content %}
+<div class="stream">
+  <h1 class="page-header">Stream</h1>
+
+  {% if let Some(name) = username %}
+  <form hx-post="/stream/posts" hx-target="#post-list" hx-swap="afterbegin" hx-on::after-request="if(event.detail.successful) this.reset(); updateCharCount(this);"
+        class="card compose">
+    <label for="post-body" class="field__label">What's on your mind?</label>
+    <textarea id="post-body" name="body" rows="3" maxlength="2000"
+              oninput="updateCharCount(this.form)"
+              class="compose__textarea"
+              placeholder="Write something..."></textarea>
+    <div class="compose__footer">
+      <span id="char-count" class="compose__charcount">2000</span>
+      <button type="submit" class="btn btn--primary btn--sm">Post</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="card compose stream__signin">
+    <a href="/auth/login">Sign in</a> to post.
+  </div>
+  {% endif %}
+
+  <div id="post-list">
+    {% if posts.is_empty() %}
+    <p class="stream__empty">No posts yet. Be the first!</p>
+    {% endif %}
+    {% for post in posts %}
+    {% include "components/post_card.html" %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

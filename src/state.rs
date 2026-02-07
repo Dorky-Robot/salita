@@ -5,6 +5,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
 use webauthn_rs::Webauthn;
 
+use crate::auth::pairing::PairingStore;
 use crate::auth::webauthn::CeremonyStore;
 use crate::config::Config;
 
@@ -16,4 +17,5 @@ pub struct AppState {
     pub config: Config,
     pub webauthn: Arc<Webauthn>,
     pub ceremonies: Arc<Mutex<CeremonyStore>>,
+    pub pairings: Arc<Mutex<PairingStore>>,
 }

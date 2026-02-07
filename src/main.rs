@@ -5,6 +5,7 @@ mod error;
 mod extractors;
 mod routes;
 mod state;
+mod tls;
 
 use std::sync::Arc;
 
@@ -20,6 +21,7 @@ use tokio::sync::Mutex;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use crate::auth::pairing::PairingStore;
 use crate::auth::webauthn::CeremonyStore;
 use crate::config::{Cli, Config};
 use crate::state::AppState;
@@ -60,9 +62,10 @@ async fn main() -> anyhow::Result<()> {
         config: config.clone(),
         webauthn: Arc::new(webauthn),
         ceremonies: Arc::new(Mutex::new(CeremonyStore::new())),
+        pairings: Arc::new(Mutex::new(PairingStore::new())),
     };
 
-    // Build router
+    // Build main app router
     let mut app = Router::new()
         .route("/", get(routes::home::index))
         .route("/assets/{*path}", get(routes::assets::serve))
@@ -75,14 +78,51 @@ async fn main() -> anyhow::Result<()> {
         app = app.route("/test/seed", get(test_seed));
     }
 
-    let app = app.layer(TraceLayer::new_for_http()).with_state(state);
+    let app = app.layer(TraceLayer::new_for_http()).with_state(state.clone());
 
-    // Start server
-    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
-    tracing::info!("Listening on http://{}", addr);
+    if config.tls_enabled() {
+        // TLS mode: HTTPS on main port + HTTP on onboarding port
+        let tls_paths = tls::ensure_certs(&data_dir, &config.instance_name)?;
+        let rustls_config = tls::load_rustls_config(&tls_paths).await?;
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+        let https_addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.server.port).parse()?;
+        tracing::info!("HTTPS server listening on https://{}", https_addr);
+
+        // Build HTTP-only router for trust/onboarding
+        let http_app = routes::trust::router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let http_addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.tls.http_port).parse()?;
+        tracing::info!(
+            "HTTP onboarding server listening on http://{}",
+            http_addr
+        );
+
+        // Run both servers concurrently
+        let https_server =
+            axum_server::bind_rustls(https_addr, rustls_config).serve(app.into_make_service());
+
+        let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
+        let http_server = axum::serve(http_listener, http_app);
+
+        println!("Open https://localhost:{} to get started", config.server.port);
+
+        tokio::select! {
+            result = https_server => { result?; }
+            result = http_server => { result?; }
+        }
+    } else {
+        // Plain HTTP mode (backward compatible)
+        let addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.server.port).parse()?;
+        tracing::info!("Listening on http://{}", addr);
+
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(listener, app).await?;
+    }
 
     Ok(())
 }

@@ -22,13 +22,18 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn qr_fragment(State(state): State<AppState>) -> AppResult<Response> {
-    let port = state.config.server.port;
-
     let lan_ip = local_ip_address::local_ip()
         .map(|ip| ip.to_string())
         .unwrap_or_else(|_| "127.0.0.1".to_string());
 
-    let lan_url = format!("http://{}:{}", lan_ip, port);
+    let lan_url = if state.config.tls_enabled() {
+        format!(
+            "http://{}:{}/connect/trust",
+            lan_ip, state.config.tls.http_port
+        )
+    } else {
+        format!("http://{}:{}", lan_ip, state.config.server.port)
+    };
 
     let code = QrCode::new(lan_url.as_bytes()).map_err(|e| {
         tracing::error!("QR code generation failed: {}", e);

@@ -23,6 +23,10 @@ pub struct SetupTemplate;
 #[template(path = "pages/login.html")]
 pub struct LoginTemplate;
 
+#[derive(Template)]
+#[template(path = "pages/pair.html")]
+pub struct PairTemplate;
+
 // -- Request types --
 
 #[derive(Deserialize)]
@@ -372,6 +376,152 @@ pub async fn logout(
             (header::SET_COOKIE, clear_session_cookie()),
         ],
         "",
+    )
+        .into_response())
+}
+
+// -- LAN Pairing handlers --
+
+#[derive(Deserialize)]
+pub struct PairVerifyRequest {
+    pub code: String,
+    pub pin: String,
+}
+
+/// GET /pair — render pairing page (mobile side)
+pub async fn pair_page() -> Html<PairTemplate> {
+    Html(PairTemplate)
+}
+
+#[derive(serde::Deserialize)]
+pub struct PairCheckQuery {
+    pub code: String,
+}
+
+/// GET /auth/pair/check?code=xxx — check if a pairing code was used (for polling)
+/// Returns: { completed: true/false }
+pub async fn pair_check(
+    State(state): State<AppState>,
+    axum::extract::Query(query): axum::extract::Query<PairCheckQuery>,
+) -> AppResult<Response> {
+    let completed = {
+        let pairings = state.pairings.lock().await;
+        pairings.is_completed(&query.code)
+    };
+
+    let body = serde_json::json!({ "completed": completed });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        serde_json::to_string(&body)?,
+    )
+        .into_response())
+}
+
+/// POST /auth/pair/start — generate pairing code + PIN (desktop side)
+/// Returns: { code, pin, url, expires_at }
+pub async fn pair_start(State(state): State<AppState>) -> AppResult<Response> {
+    // Generate random code and PIN
+    let code = uuid::Uuid::new_v4().to_string();
+    let pin = crate::auth::pairing::generate_pin();
+
+    // Calculate expiry timestamp (30 seconds from now)
+    let expires_at = chrono::Utc::now().timestamp_millis() + 30_000;
+
+    // Store challenge
+    {
+        let mut pairings = state.pairings.lock().await;
+        pairings.insert(code.clone(), pin.clone());
+    }
+
+    // Build pairing URL using LAN IP (HTTPS main port)
+    let lan_ip = local_ip_address::local_ip()
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
+    let pair_url = format!("https://{}:{}/pair?code={}", lan_ip, state.config.server.port, code);
+
+    let body = serde_json::json!({
+        "code": code,
+        "pin": pin,
+        "url": pair_url,
+        "expiresAt": expires_at,
+    });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        serde_json::to_string(&body)?,
+    )
+        .into_response())
+}
+
+/// POST /auth/pair/verify — verify code + PIN and create session (mobile side)
+/// Returns: { ok: true } with session cookie
+pub async fn pair_verify(
+    State(state): State<AppState>,
+    Json(req): Json<PairVerifyRequest>,
+) -> AppResult<Response> {
+    // Retrieve challenge (but don't remove it yet - mark as completed instead)
+    let challenge = {
+        let pairings = state.pairings.lock().await;
+        pairings.challenges.get(&req.code).cloned()
+    };
+
+    let challenge = challenge.ok_or_else(|| {
+        AppError::BadRequest("Invalid or expired pairing code".into())
+    })?;
+
+    // Normalize PIN (strip non-digits)
+    let submitted_pin = req.pin.chars().filter(|c| c.is_ascii_digit()).collect::<String>();
+
+    if challenge.pin != submitted_pin {
+        return Err(AppError::BadRequest("Invalid PIN".into()));
+    }
+
+    // Mark as completed (for desktop polling)
+    {
+        let mut pairings = state.pairings.lock().await;
+        pairings.mark_completed(&req.code);
+    }
+
+    // Find or create a user (for now, we'll create a default paired user)
+    // In the future, you might want to link this to an existing user
+    let conn = state.db.get()?;
+
+    let user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE username = 'paired-user' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = if let Some(id) = user_id {
+        id
+    } else {
+        // Create a default paired user
+        let new_user_id = uuid::Uuid::now_v7().to_string();
+        conn.execute(
+            "INSERT INTO users (id, username, display_name, is_admin) VALUES (?1, 'paired-user', 'Paired User', 1)",
+            params![new_user_id],
+        )?;
+        new_user_id
+    };
+
+    // Create session
+    let token = session::create_session(&state.db, &user_id, state.config.auth.session_hours)?;
+
+    let body = serde_json::json!({ "ok": true });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        AppendHeaders([(
+            header::SET_COOKIE,
+            session_cookie(&token, state.config.auth.session_hours),
+        )]),
+        serde_json::to_string(&body)?,
     )
         .into_response())
 }

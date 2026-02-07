@@ -13,4 +13,8 @@ pub fn router() -> Router<AppState> {
         .route("/auth/login/start", post(handlers::login_start))
         .route("/auth/login/finish", post(handlers::login_finish))
         .route("/auth/logout", post(handlers::logout))
+        .route("/pair", get(handlers::pair_page))
+        .route("/auth/pair/start", post(handlers::pair_start))
+        .route("/auth/pair/verify", post(handlers::pair_verify))
+        .route("/auth/pair/check", get(handlers::pair_check))
 }

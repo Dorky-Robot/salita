@@ -12,6 +12,38 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// Modal close behavior with exit animation
+function closeConnectModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  var overlay = document.getElementById('connect-modal');
+  if (!overlay) return;
+  overlay.classList.add('modal-overlay--closing');
+  overlay.addEventListener('animationend', function() {
+    var container = document.getElementById('modal-container');
+    if (container) container.innerHTML = '';
+  }, { once: true });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeConnectModal();
+  }
+});
+
+// Copy LAN URL to clipboard
+function copyLanUrl(btn) {
+  var url = btn.getAttribute('data-url');
+  navigator.clipboard.writeText(url).then(function() {
+    var icon = btn.querySelector('i');
+    icon.className = 'ph ph-check';
+    btn.classList.add('modal__url-copy--copied');
+    setTimeout(function() {
+      icon.className = 'ph ph-copy';
+      btn.classList.remove('modal__url-copy--copied');
+    }, 2000);
+  });
+}
+
 // Character counter for post compose textarea
 function updateCharCount(form) {
   var textarea = form.querySelector('textarea[name="body"]');

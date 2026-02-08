@@ -24,6 +24,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "004_passkey_json",
         include_str!("../../migrations/004_passkey_json.sql"),
     ),
+    (
+        "005_mesh_network",
+        include_str!("../../migrations/005_mesh_network.sql"),
+    ),
 ];
 
 pub fn create_pool(db_path: &Path) -> anyhow::Result<DbPool> {
@@ -76,6 +80,12 @@ pub fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
             )?;
         }
     }
+
+    // Ensure the "owner" user exists (for single-user mode)
+    conn.execute(
+        "INSERT OR IGNORE INTO users (id, username, is_admin) VALUES ('owner', 'owner', 1)",
+        [],
+    )?;
 
     tracing::info!("Database migrations complete");
     Ok(())

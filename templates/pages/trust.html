@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect to {{ instance_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fafaf9;
+      color: #1c1917;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e7e5e4;
+      border-radius: 1rem;
+      padding: 2rem;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+    }
+    .shield {
+      margin-bottom: 1rem;
+      color: #16a34a;
+    }
+    .card h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: #78716c;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .section { display: none; }
+    .section.active { display: block; }
+    .steps {
+      text-align: left;
+      margin: 1rem 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+    }
+    .steps li {
+      counter-increment: step;
+      padding: 0.5rem 0;
+      padding-left: 2rem;
+      position: relative;
+      font-size: 0.875rem;
+      color: #44403c;
+      line-height: 1.5;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      background: #f5f5f4;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #78716c;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: #1c1917;
+      color: #fff;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      margin-bottom: 0.75rem;
+    }
+    .btn:hover { background: #292524; }
+    .btn-secondary {
+      display: inline-block;
+      padding: 0.6rem 1.2rem;
+      background: #f5f5f4;
+      color: #1c1917;
+      border: 1px solid #e7e5e4;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+    }
+    .btn-secondary:hover { background: #e7e5e4; }
+    .continue-section {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e7e5e4;
+    }
+    .continue-note {
+      font-size: 0.8rem;
+      color: #a8a29e;
+      margin-bottom: 0.75rem;
+    }
+    .continue {
+      display: inline-block;
+      padding: 0.75rem 2rem;
+      background: #1c1917;
+      color: #fff;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+    .continue:hover { background: #292524; }
+    details {
+      text-align: left;
+      margin: 1rem 0;
+      font-size: 0.825rem;
+      color: #78716c;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: 500;
+      color: #57534e;
+      padding: 0.25rem 0;
+    }
+    details p {
+      margin-top: 0.5rem;
+      line-height: 1.6;
+      font-size: 0.825rem;
+      color: #78716c;
+    }
+    .success-banner {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .success-banner.visible { display: block; }
+    .success-banner .check {
+      color: #16a34a;
+      margin-bottom: 0.5rem;
+    }
+    .success-banner h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.25rem;
+      color: #166534;
+    }
+    .success-banner p {
+      font-size: 0.85rem;
+      color: #15803d;
+      margin-bottom: 0.75rem;
+    }
+    .success-banner .btn {
+      background: #16a34a;
+    }
+    .success-banner .btn:hover {
+      background: #15803d;
+    }
+    .install-instructions { }
+    .install-instructions.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="shield">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <h1>Connect to {{ instance_name }}</h1>
+    <p class="subtitle">This is a one-time setup to secure your connection.</p>
+
+    <div id="success-banner" class="success-banner">
+      <div class="check">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+      <h2>You're already connected!</h2>
+      <p>This device trusts {{ instance_name }} — no setup needed.</p>
+      <a class="btn" href="{{ https_url }}">Open {{ instance_name }}</a>
+    </div>
+
+    <div id="install-instructions" class="install-instructions">
+      <div id="ios-section" class="section">
+        <a class="btn" href="/connect/trust/ca.mobileconfig">Install Trust Profile</a>
+        <ol class="steps">
+          <li>Tap the button above to download the profile</li>
+          <li>Open <strong>Settings</strong> &rarr; <strong>General</strong> &rarr; <strong>VPN & Device Management</strong></li>
+          <li>Tap <strong>{{ instance_name }} Secure Connection</strong> and install it</li>
+          <li>Go to <strong>Settings</strong> &rarr; <strong>General</strong> &rarr; <strong>About</strong> &rarr; <strong>Certificate Trust Settings</strong></li>
+          <li>Enable full trust for <strong>{{ instance_name }} Local CA</strong></li>
+        </ol>
+      </div>
+
+      <div id="android-section" class="section">
+        <a class="btn" href="/connect/trust/ca.crt">Download Certificate</a>
+        <ol class="steps">
+          <li>Tap the button above and save the file</li>
+          <li>Open your <strong>Settings</strong> app and search for <strong>Install a certificate</strong></li>
+          <li>Choose <strong>CA certificate</strong>, tap <strong>Install anyway</strong></li>
+          <li>Find and select <strong>salita-ca.crt</strong> from your Downloads</li>
+        </ol>
+        <a class="btn-secondary" href="intent:#Intent;action=android.settings.SECURITY_SETTINGS;end">Open Settings</a>
+        <details>
+          <summary>Why is this needed?</summary>
+          <p>
+            {{ instance_name }} uses a private certificate to encrypt traffic on your home network.
+            Unlike public websites, local servers can't get certificates from authorities like Let's Encrypt.
+            Installing this certificate tells your device to trust your own server — it's the same
+            technology that keeps banking apps and online shopping secure.
+          </p>
+        </details>
+      </div>
+
+      <div id="desktop-section" class="section">
+        <a class="btn" href="/connect/trust/ca.crt">Download CA Certificate</a>
+        <ol class="steps">
+          <li>Download the CA certificate above</li>
+          <li>Add it to your system's trusted certificate store</li>
+        </ol>
+      </div>
+
+      <div class="continue-section">
+        <p class="continue-note">Come back here after installing the certificate</p>
+        <a class="continue" href="{{ https_url }}">Continue to {{ instance_name }} &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var ua = navigator.userAgent || '';
+      var section;
+      if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        section = 'ios-section';
+      } else if (/Android/.test(ua)) {
+        section = 'android-section';
+      } else {
+        section = 'desktop-section';
+      }
+      document.getElementById(section).classList.add('active');
+
+      // Check if the cert is already trusted
+      var httpsUrl = '{{ https_url }}';
+      fetch(httpsUrl + '/connect/trust/ca.crt', { mode: 'no-cors' })
+        .then(function() {
+          document.getElementById('success-banner').classList.add('visible');
+          document.getElementById('install-instructions').classList.add('hidden');
+        })
+        .catch(function() {
+          // Cert not trusted yet — show install instructions (default state)
+        });
+    })();
+  </script>
+</body>
+</html>

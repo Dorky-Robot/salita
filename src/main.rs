@@ -3,8 +3,10 @@ mod config;
 mod db;
 mod error;
 mod extractors;
+mod graphql;
 mod routes;
 mod state;
+mod tls;
 
 use std::sync::Arc;
 
@@ -20,6 +22,9 @@ use tokio::sync::Mutex;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use crate::auth::join_tokens::JoinTokenStore;
+use crate::auth::linking::LinkingCodeStore;
+use crate::auth::pairing::PairingStore;
 use crate::auth::webauthn::CeremonyStore;
 use crate::config::{Cli, Config};
 use crate::state::AppState;
@@ -49,37 +54,99 @@ async fn main() -> anyhow::Result<()> {
     db::run_migrations(&pool)?;
 
     // Build WebAuthn instance
-    let webauthn = auth::webauthn::build_webauthn(config.server.port)
-        .expect("Failed to build WebAuthn instance");
+    let site_url = config.site_url();
+    tracing::info!("Site URL (WebAuthn origin): {}", site_url);
+    let webauthn =
+        auth::webauthn::build_webauthn(&site_url).expect("Failed to build WebAuthn instance");
+
+    // Build GraphQL schema
+    let graphql_schema = graphql::build_schema();
 
     // Build app state
     let state = AppState {
         db: pool,
         config: config.clone(),
+        data_dir: data_dir.clone(),
         webauthn: Arc::new(webauthn),
         ceremonies: Arc::new(Mutex::new(CeremonyStore::new())),
+        pairings: Arc::new(Mutex::new(PairingStore::new())),
+        linking_codes: Arc::new(Mutex::new(LinkingCodeStore::new())),
+        join_tokens: Arc::new(Mutex::new(JoinTokenStore::new())),
+        graphql_schema,
     };
 
-    // Build router
+    // Build main app router
     let mut app = Router::new()
         .route("/", get(routes::home::index))
         .route("/assets/{*path}", get(routes::assets::serve))
         .merge(routes::auth::router())
-        .merge(routes::stream::router());
+        .merge(routes::dashboard::router())
+        .merge(routes::stream::router())
+        .merge(routes::connect::router())
+        .merge(routes::settings::router())
+        .merge(routes::graphql::router());
 
     // Test-only seed endpoint: creates a user + session, returns session cookie
     if std::env::var("SALITA_TEST_SEED").is_ok() {
         app = app.route("/test/seed", get(test_seed));
     }
 
-    let app = app.layer(TraceLayer::new_for_http()).with_state(state);
+    let app = app.layer(TraceLayer::new_for_http()).with_state(state.clone());
 
-    // Start server
-    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
-    tracing::info!("Listening on http://{}", addr);
+    if config.tls_enabled() {
+        // TLS mode: HTTPS on main port + HTTP on onboarding port
+        let tls_paths = tls::ensure_certs(&data_dir, &config.instance_name)?;
+        let rustls_config = tls::load_rustls_config(&tls_paths).await?;
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+        let https_addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.server.port).parse()?;
+        tracing::info!("HTTPS server listening on https://{}", https_addr);
+
+        // Build HTTP-only router for trust/onboarding (no redirects)
+        // Only serves the trust page at /connect/trust
+        let http_app = routes::trust::router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state.clone());
+
+        let http_addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.tls.http_port).parse()?;
+        tracing::info!(
+            "HTTP onboarding server listening on http://{}",
+            http_addr
+        );
+
+        // Run both servers concurrently
+        let https_server = axum_server::bind_rustls(https_addr, rustls_config).serve(
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        );
+
+        let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
+        let http_server = axum::serve(
+            http_listener,
+            http_app.into_make_service_with_connect_info::<SocketAddr>(),
+        );
+
+        println!("\n📋 Setup Instructions:");
+        println!("   1. Trust certificate: http://localhost:{}/connect/trust", config.tls.http_port);
+        println!("   2. Access app:        https://localhost:{}\n", config.server.port);
+
+        tokio::select! {
+            result = https_server => { result?; }
+            result = http_server => { result?; }
+        }
+    } else {
+        // Plain HTTP mode (backward compatible)
+        let addr: SocketAddr =
+            format!("{}:{}", config.server.host, config.server.port).parse()?;
+        tracing::info!("Listening on http://{}", addr);
+
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await?;
+    }
 
     Ok(())
 }

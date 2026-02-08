@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block title %}Mesh Dashboard — Salita{% endblock %}
+
+{% block head %}
+<style>
+  .dashboard {
+    padding: 2rem 0;
+  }
+
+  .dashboard__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .dashboard__title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .dashboard__stats {
+    display: flex;
+    gap: 2rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .stat__value {
+    font-weight: 600;
+    color: #000;
+  }
+
+  .dashboard__actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .nodes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .node-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+  }
+
+  .node-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .node-card.current {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #f0f9ff 0%, #fff 100%);
+  }
+
+  .node-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 1rem;
+  }
+
+  .node-card__icon {
+    font-size: 2.5rem;
+  }
+
+  .node-card__status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .node-card__status--online {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .node-card__status--offline {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .status-dot--online {
+    background: #22c55e;
+  }
+
+  .status-dot--offline {
+    background: #ef4444;
+  }
+
+  .node-card__name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .node-card__address {
+    color: #666;
+    font-size: 0.9rem;
+    font-family: 'SF Mono', Monaco, monospace;
+    margin-bottom: 1rem;
+  }
+
+  .node-card__capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+
+  .capability-tag {
+    padding: 0.25rem 0.75rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #374151;
+  }
+
+  .node-card__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.85rem;
+    color: #666;
+  }
+
+  .node-card__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .node-card__action-btn {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.2s;
+  }
+
+  .node-card__action-btn:hover {
+    color: #3b82f6;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #666;
+  }
+
+  .empty-state__icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #000;
+  }
+
+  .empty-state__text {
+    margin-bottom: 2rem;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #3b82f6;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+  }
+</style>
+
+<script>
+  let nodes = [];
+
+  async function loadDashboard() {
+    try {
+      const response = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query {
+            currentNode { id }
+            nodes {
+              id
+              name
+              hostname
+              port
+              status
+              capabilities
+              lastSeen
+              createdAt
+            }
+          }`
+        })
+      });
+
+      const result = await response.json();
+      if (result.data) {
+        nodes = result.data.nodes;
+        const currentNodeId = result.data.currentNode.id;
+        renderNodes(nodes, currentNodeId);
+        updateStats(nodes);
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+    }
+  }
+
+  function renderNodes(nodes, currentNodeId) {
+    const container = document.getElementById('nodes-container');
+
+    if (nodes.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state__icon">🌐</div>
+          <h2 class="empty-state__title">No Mesh Network Yet</h2>
+          <p class="empty-state__text">Add your first device to start building your personal mesh network.</p>
+          <button class="btn btn--primary" onclick="openAddDevice()">Add Your First Device</button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = nodes.map(node => {
+      const isCurrent = node.id === currentNodeId;
+      const isOnline = node.status === 'ONLINE';
+      const lastSeen = new Date(node.lastSeen);
+      const timeAgo = formatTimeAgo(lastSeen);
+
+      return `
+        <div class="node-card ${isCurrent ? 'current' : ''}">
+          <div class="node-card__header">
+            <div class="node-card__icon">${getNodeIcon(node)}</div>
+            <div class="node-card__status node-card__status--${isOnline ? 'online' : 'offline'}">
+              <span class="status-dot status-dot--${isOnline ? 'online' : 'offline'}"></span>
+              ${isOnline ? 'Online' : 'Offline'}
+            </div>
+          </div>
+
+          <h3 class="node-card__name">
+            ${node.name}
+            ${isCurrent ? '<span class="badge">This Device</span>' : ''}
+          </h3>
+          <div class="node-card__address">${node.hostname}:${node.port}</div>
+
+          ${node.capabilities.length > 0 ? `
+            <div class="node-card__capabilities">
+              ${node.capabilities.map(cap => `<span class="capability-tag">${cap}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <div class="node-card__meta">
+            <span>Last seen ${timeAgo}</span>
+            <div class="node-card__actions">
+              <button class="node-card__action-btn" title="Configure" onclick="configureNode('${node.id}')">
+                <i class="ph ph-gear-six"></i>
+              </button>
+              ${!isCurrent ? `
+                <button class="node-card__action-btn" title="Remove" onclick="removeNode('${node.id}', '${node.name}')">
+                  <i class="ph ph-trash"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateStats(nodes) {
+    const onlineCount = nodes.filter(n => n.status === 'ONLINE').length;
+    document.getElementById('stat-online').textContent = onlineCount;
+    document.getElementById('stat-total').textContent = nodes.length;
+  }
+
+  function getNodeIcon(node) {
+    // Simple heuristic based on name or capabilities
+    const name = node.name.toLowerCase();
+    if (name.includes('phone') || name.includes('mobile')) return '📱';
+    if (name.includes('pi') || name.includes('raspberry')) return '🥧';
+    if (name.includes('mac') || name.includes('laptop')) return '💻';
+    if (name.includes('server') || name.includes('storage')) return '💾';
+    return '🖥️';
+  }
+
+  function formatTimeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  }
+
+  function openAddDevice() {
+    htmx.ajax('GET', '/dashboard/add-device-modal', {
+      target: '#modal-container',
+      swap: 'innerHTML'
+    });
+  }
+
+  async function configureNode(nodeId) {
+    // TODO: Open configuration modal
+    console.log('Configure node:', nodeId);
+  }
+
+  async function removeNode(nodeId, nodeName) {
+    if (!confirm(`Remove "${nodeName}" from the mesh network?`)) return;
+
+    try {
+      const response = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation RemoveNode($nodeId: String!) {
+            removeNode(nodeId: $nodeId) {
+              success
+              message
+            }
+          }`,
+          variables: {
+            nodeId: nodeId
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (result.data?.removeNode.success) {
+        loadDashboard(); // Reload
+      } else {
+        alert('Failed to remove node');
+      }
+    } catch (error) {
+      console.error('Failed to remove node:', error);
+      alert('Failed to remove node');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadDashboard);
+
+  // Auto-refresh every 30 seconds
+  setInterval(loadDashboard, 30000);
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+  <div class="dashboard__header">
+    <div>
+      <h1 class="dashboard__title">🌐 Mesh Network</h1>
+      <div class="dashboard__stats">
+        <div class="stat">
+          <span>Devices:</span>
+          <span class="stat__value"><span id="stat-online">0</span>/<span id="stat-total">0</span> online</span>
+        </div>
+      </div>
+    </div>
+    <div class="dashboard__actions">
+      <button class="btn btn--secondary" onclick="loadDashboard()">
+        <i class="ph ph-arrow-clockwise"></i> Refresh
+      </button>
+      <button class="btn btn--primary" onclick="openAddDevice()">
+        <i class="ph ph-plus"></i> Add Device
+      </button>
+    </div>
+  </div>
+
+  <div id="nodes-container" class="nodes-grid">
+    <!-- Nodes will be loaded here -->
+  </div>
+</div>
+{% endblock %}

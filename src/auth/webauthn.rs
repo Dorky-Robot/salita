@@ -3,11 +3,16 @@ use std::time::Instant;
 use webauthn_rs::prelude::*;
 use webauthn_rs::Webauthn;
 
-/// Build a Webauthn instance for localhost development.
-pub fn build_webauthn(port: u16) -> Result<Webauthn, webauthn_rs::prelude::WebauthnError> {
-    let rp_id = "localhost";
-    let rp_origin =
-        url::Url::parse(&format!("http://localhost:{}", port)).expect("Invalid origin URL");
+/// Returns the default site URL for a given port (http://localhost:{port}).
+pub fn default_site_url(port: u16) -> String {
+    format!("http://localhost:{}", port)
+}
+
+/// Build a Webauthn instance from a full site URL (e.g. "http://salita.local:6969").
+/// The host portion is used as the RP ID and the full URL as the RP origin.
+pub fn build_webauthn(site_url: &str) -> Result<Webauthn, webauthn_rs::prelude::WebauthnError> {
+    let rp_origin = url::Url::parse(site_url).expect("Invalid origin URL");
+    let rp_id = rp_origin.host_str().expect("URL must have a host");
     let builder = webauthn_rs::WebauthnBuilder::new(rp_id, &rp_origin)?;
     builder.build()
 }
@@ -71,8 +76,20 @@ mod tests {
 
     #[test]
     fn build_webauthn_succeeds() {
-        let wn = build_webauthn(3000);
+        let wn = build_webauthn("http://localhost:3000");
         assert!(wn.is_ok());
+    }
+
+    #[test]
+    fn build_webauthn_with_custom_host() {
+        let wn = build_webauthn("http://salita.local:6969");
+        assert!(wn.is_ok());
+    }
+
+    #[test]
+    fn default_site_url_formats_correctly() {
+        assert_eq!(default_site_url(6969), "http://localhost:6969");
+        assert_eq!(default_site_url(8080), "http://localhost:8080");
     }
 
     #[test]

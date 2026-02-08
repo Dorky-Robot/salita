@@ -1,0 +1,294 @@
+<div class="modal" id="add-device-modal">
+  <div class="modal__backdrop" onclick="closeModal()"></div>
+  <div class="modal__content" style="max-width: 500px;">
+    <div class="modal__header">
+      <h2 class="modal__title">Add Device to Mesh</h2>
+      <button class="modal__close" onclick="closeModal()">
+        <i class="ph ph-x"></i>
+      </button>
+    </div>
+
+    <div class="modal__body">
+      <p style="color: #666; margin-bottom: 1.5rem;">
+        Enter the device's IP address and PIN to add it to your mesh network.
+      </p>
+
+      <form id="add-device-form" onsubmit="handleAddDevice(event)">
+        <div class="form-group">
+          <label for="device-ip">Device IP Address</label>
+          <input
+            type="text"
+            id="device-ip"
+            name="ip"
+            placeholder="192.168.1.50"
+            pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
+            required
+            class="input"
+          />
+          <small style="color: #666;">Find this on the device's "Join Mesh" screen</small>
+        </div>
+
+        <div class="form-group">
+          <label for="device-port">Port (optional)</label>
+          <input
+            type="number"
+            id="device-port"
+            name="port"
+            placeholder="6969"
+            value="6969"
+            class="input"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="device-pin">6-Digit PIN</label>
+          <input
+            type="text"
+            id="device-pin"
+            name="pin"
+            placeholder="123456"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+            class="input"
+            style="font-size: 1.5rem; letter-spacing: 0.5rem; font-family: monospace;"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="device-name">Device Name (optional)</label>
+          <input
+            type="text"
+            id="device-name"
+            name="name"
+            placeholder="Storage Laptop"
+            class="input"
+          />
+        </div>
+
+        <div id="add-device-error" class="alert alert--error" style="display: none;"></div>
+        <div id="add-device-success" class="alert alert--success" style="display: none;"></div>
+
+        <div class="modal__actions">
+          <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn--primary" id="add-device-submit">
+            <i class="ph ph-plus"></i> Add Device
+          </button>
+        </div>
+      </form>
+
+      <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e5e7eb;">
+        <button class="btn btn--secondary" onclick="scanNetwork()" style="width: 100%;">
+          <i class="ph ph-magnifying-glass"></i> Scan Network for Devices
+          <span style="font-size: 0.85rem; opacity: 0.7; margin-left: 0.5rem;">(Coming Soon)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal__backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .modal__content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .modal__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    color: #666;
+    transition: color 0.2s;
+  }
+
+  .modal__close:hover {
+    color: #000;
+  }
+
+  .modal__body {
+    padding: 1.5rem;
+  }
+
+  .modal__actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #374151;
+  }
+
+  .form-group small {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .alert {
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .alert--error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  .alert--success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+</style>
+
+<script>
+  async function handleAddDevice(event) {
+    event.preventDefault();
+
+    const form = event.target;
+    const submitBtn = document.getElementById('add-device-submit');
+    const errorEl = document.getElementById('add-device-error');
+    const successEl = document.getElementById('add-device-success');
+
+    const ip = form.ip.value.trim();
+    const port = form.port.value || '6969';
+    const pin = form.pin.value.trim();
+    const name = form.name.value.trim() || `Device at ${ip}`;
+
+    errorEl.style.display = 'none';
+    successEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="ph ph-spinner"></i> Adding...';
+
+    try {
+      // Step 1: Verify PIN with the remote device
+      const verifyResponse = await fetch(`https://${ip}:${port}/mesh/verify-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+
+      if (!verifyResponse.ok) {
+        throw new Error('Invalid PIN or device not reachable');
+      }
+
+      // Step 2: Register the node in our mesh
+      const registerResponse = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation RegisterNode($input: RegisterNodeInput!) {
+            registerNode(input: $input) {
+              success
+              message
+              node { id name }
+            }
+          }`,
+          variables: {
+            input: {
+              name: name,
+              hostname: ip,
+              port: parseInt(port)
+            }
+          }
+        })
+      });
+
+      const result = await registerResponse.json();
+
+      if (result.data?.registerNode.success) {
+        successEl.textContent = `✓ ${name} added successfully!`;
+        successEl.style.display = 'block';
+
+        // Reload dashboard after 1 second
+        setTimeout(() => {
+          closeModal();
+          loadDashboard();
+        }, 1000);
+      } else {
+        throw new Error(result.data?.registerNode.message || 'Failed to register node');
+      }
+
+    } catch (error) {
+      errorEl.textContent = error.message;
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="ph ph-plus"></i> Add Device';
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('modal-container').innerHTML = '';
+  }
+
+  function scanNetwork() {
+    alert('Network scanning will be implemented soon! For now, please enter the device IP manually.');
+  }
+</script>

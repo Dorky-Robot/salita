@@ -1,0 +1,330 @@
+<div class="modal-overlay" id="connect-modal" onclick="closeConnectModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal__header">
+      <span class="modal__title">Connect a device</span>
+      <button class="modal__close" onclick="closeConnectModal()"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal__body">
+      <!-- Step indicators -->
+      <div class="connect__steps">
+        <span class="connect__step active" data-step="1">1</span>
+        <span class="connect__step" data-step="2">2</span>
+        <span class="connect__step" data-step="3">3</span>
+      </div>
+
+      <!-- Step 1: Trust Certificate -->
+      <div class="connect__panel active" data-panel="1">
+        <p class="connect__subtitle">Scan this QR code with your phone to install the trust certificate.</p>
+        <div class="modal__qr">{{ qr_svg|safe }}</div>
+        <button class="modal__url-copy" onclick="copyLanUrl(this)" data-url="{{ lan_url }}">
+          <span>{{ lan_url }}</span>
+          <i class="ph ph-copy"></i>
+        </button>
+        <button class="connect__btn connect__btn--primary" onclick="goToStep(2)">Next</button>
+      </div>
+
+      <!-- Step 2: Pair with PIN -->
+      <div class="connect__panel" data-panel="2">
+        <p class="connect__subtitle">Scan the QR code and enter both codes on your phone.</p>
+        <div class="modal__qr" id="pair-qr"></div>
+        <div class="connect__pin" id="pair-pin">------</div>
+        <div class="connect__linking">
+          <p class="connect__linking-label">Linking Code:</p>
+          <div class="connect__linking-code" id="linking-code">---</div>
+        </div>
+        <div class="connect__countdown" id="pair-countdown"></div>
+        <p class="connect__error" id="pair-error"></p>
+        <button class="connect__btn connect__btn--secondary" onclick="goToStep(1)">Back</button>
+      </div>
+      <!-- Step 3: Success -->
+      <div class="connect__panel" data-panel="3">
+        <div class="connect__success">✓</div>
+        <p class="connect__subtitle">Device paired successfully!</p>
+        <button class="connect__btn connect__btn--success" onclick="closeConnectModal()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.connect__steps {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.connect__step {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #e7e5e4;
+  color: #78716c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.connect__step.active {
+  background: #1c1917;
+  color: #fff;
+}
+
+.connect__step.done {
+  background: #16a34a;
+  color: #fff;
+}
+
+.connect__panel {
+  display: none;
+}
+
+.connect__panel.active {
+  display: block;
+}
+
+.connect__subtitle {
+  color: #78716c;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.connect__pin {
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: #1c1917;
+  margin: 1rem 0;
+  font-family: monospace;
+}
+
+.connect__linking {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #f5f5f4;
+  border-radius: 0.5rem;
+  border: 2px dashed #d6d3d1;
+}
+
+.connect__linking-label {
+  font-size: 0.75rem;
+  color: #78716c;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.connect__linking-code {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1c1917;
+  font-family: monospace;
+  letter-spacing: 0.1em;
+}
+
+.connect__countdown {
+  color: #78716c;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.connect__error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  min-height: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.connect__btn {
+  width: 100%;
+  height: 2.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: all 0.2s;
+}
+
+.connect__btn--primary {
+  background: #1c1917;
+  color: #fff;
+}
+
+.connect__btn--primary:hover {
+  background: #292524;
+}
+
+.connect__btn--secondary {
+  background: #e7e5e4;
+  color: #1c1917;
+}
+
+.connect__btn--secondary:hover {
+  background: #d6d3d1;
+}
+
+.connect__btn--success {
+  background: #16a34a;
+  color: #fff;
+}
+
+.connect__btn--success:hover {
+  background: #15803d;
+}
+
+.connect__success {
+  font-size: 4rem;
+  color: #16a34a;
+  margin-bottom: 1rem;
+}
+</style>
+
+<script>
+let currentStep = 1;
+let pairRefreshTimer = null;
+let pairCountdownTimer = null;
+let activePairCode = null;
+
+function goToStep(step) {
+  // Update step indicators
+  document.querySelectorAll('.connect__step').forEach((el, idx) => {
+    el.classList.remove('active', 'done');
+    if (idx + 1 < step) el.classList.add('done');
+    else if (idx + 1 === step) el.classList.add('active');
+  });
+
+  // Update panels
+  document.querySelectorAll('.connect__panel').forEach(el => {
+    el.classList.remove('active');
+  });
+  document.querySelector(`[data-panel="${step}"]`)?.classList.add('active');
+
+  currentStep = step;
+
+  // Start pairing when entering step 2
+  if (step === 2) {
+    startPairing();
+  } else {
+    stopPairing();
+  }
+}
+
+function stopPairing() {
+  clearTimeout(pairRefreshTimer);
+  clearInterval(pairCountdownTimer);
+  if (pairPollInterval) {
+    clearInterval(pairPollInterval);
+    pairPollInterval = null;
+  }
+  activePairCode = null;
+}
+
+async function startPairing() {
+  stopPairing();
+  await refreshPairCode();
+  startPollForPairing();
+}
+
+async function refreshPairCode() {
+  const errorEl = document.getElementById('pair-error');
+  errorEl.textContent = '';
+
+  try {
+    const res = await fetch('/auth/pair/start', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start pairing');
+    const data = await res.json();
+
+    activePairCode = data.code;
+
+    // Render QR
+    const qrContainer = document.getElementById('pair-qr');
+    qrContainer.innerHTML = '';
+    if (data.url && typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(data.url, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#1c1917', light: '#ffffff' },
+      }, function(err, canvas) {
+        if (!err) qrContainer.appendChild(canvas);
+      });
+    }
+
+    // Show PIN and linking code
+    document.getElementById('pair-pin').textContent = data.pin;
+    document.getElementById('linking-code').textContent = data.linkingCode || '---';
+
+    // Countdown
+    clearInterval(pairCountdownTimer);
+    function updateCountdown() {
+      const left = Math.max(0, Math.ceil((data.expiresAt - Date.now()) / 1000));
+      document.getElementById('pair-countdown').textContent =
+        left > 0 ? `Refreshing in ${left}s` : 'Refreshing...';
+    }
+    updateCountdown();
+    pairCountdownTimer = setInterval(updateCountdown, 1000);
+
+    // Schedule refresh ~25s (5s before expiry)
+    const refreshIn = Math.max(1000, (data.expiresAt - Date.now()) - 5000);
+    pairRefreshTimer = setTimeout(() => {
+      if (currentStep === 2) refreshPairCode();
+    }, refreshIn);
+
+  } catch (err) {
+    errorEl.textContent = err.message;
+  }
+}
+
+// Poll for pairing completion
+let pairPollInterval = null;
+
+async function startPollForPairing() {
+  if (pairPollInterval) return;
+
+  pairPollInterval = setInterval(async () => {
+    if (currentStep === 2 && activePairCode) {
+      try {
+        const res = await fetch(`/auth/pair/check?code=${encodeURIComponent(activePairCode)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.completed) {
+            // Pairing succeeded!
+            stopPairing();
+            clearInterval(pairPollInterval);
+            pairPollInterval = null;
+            goToStep(3);
+          }
+        }
+      } catch (e) {
+        // Ignore errors, keep polling
+      }
+    }
+  }, 500); // Check every 500ms for quick response
+}
+
+// Start polling when modal opens
+const observer = new MutationObserver(() => {
+  const modal = document.getElementById('connect-modal');
+  if (modal && modal.style.display !== 'none' && !modal.classList.contains('hidden')) {
+    if (currentStep === 2) startPollForPairing();
+  } else {
+    if (pairPollInterval) {
+      clearInterval(pairPollInterval);
+      pairPollInterval = null;
+    }
+  }
+});
+
+if (document.getElementById('connect-modal')) {
+  observer.observe(document.getElementById('connect-modal'), {
+    attributes: true,
+    attributeFilter: ['style', 'class']
+  });
+}
+</script>

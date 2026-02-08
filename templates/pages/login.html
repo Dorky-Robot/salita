@@ -4,6 +4,48 @@
 
 {% block head %}
 <script src="/assets/js/passkey.js" defer></script>
+<script>
+  // Fetch request origin and conditionally render auth UI
+  async function initAuthPage() {
+    try {
+      const res = await fetch('/auth/context');
+      const data = await res.json();
+
+      const container = document.getElementById('auth-container');
+
+      if (data.origin === 'localhost') {
+        // Localhost: Already authenticated, redirect
+        container.innerHTML = '<div class="card"><p class="auth-page__status">Already authenticated from localhost. Redirecting...</p></div>';
+        setTimeout(() => window.location.href = '/', 1000);
+      } else if (data.origin === 'lan') {
+        // LAN: Show QR code pairing (reuse existing connect modal logic)
+        container.innerHTML = '<div class="card"><p class="auth-page__subtitle">Scan QR code from your authenticated device to pair this device.</p><div id="qr-container"></div><p id="status" class="auth-page__status"></p></div>';
+        // Import QR pairing logic if available
+        // For now, show passkey as fallback
+        showPasskeyLogin();
+      } else {
+        // External: Show passkey login
+        showPasskeyLogin();
+      }
+    } catch (err) {
+      console.error('Failed to fetch auth context:', err);
+      // Fallback to passkey login
+      showPasskeyLogin();
+    }
+  }
+
+  function showPasskeyLogin() {
+    const container = document.getElementById('auth-container');
+    container.innerHTML = `
+      <div class="card">
+        <button onclick="authenticatePasskey()" class="btn btn--primary btn--full">Sign in with Passkey</button>
+        <p id="status" class="auth-page__status"></p>
+      </div>
+    `;
+  }
+
+  document.addEventListener('DOMContentLoaded', initAuthPage);
+</script>
 {% endblock %}
 
 {% block content %}
@@ -11,9 +53,8 @@
   <h1 class="auth-page__title">Sign In</h1>
   <p class="auth-page__subtitle">Use your passkey to sign in to Salita.</p>
 
-  <div class="card">
-    <button onclick="authenticatePasskey()" class="btn btn--primary btn--full">Sign in with Passkey</button>
-    <p id="status" class="auth-page__status"></p>
+  <div id="auth-container">
+    <!-- Content will be dynamically loaded based on request origin -->
   </div>
 </div>
 {% endblock %}

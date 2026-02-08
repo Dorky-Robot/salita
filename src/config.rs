@@ -17,18 +17,24 @@ pub struct Cli {
     #[arg(short, long)]
     pub port: Option<u16>,
 
+    /// Site URL for WebAuthn (e.g. http://salita.local:6969)
+    #[arg(long)]
+    pub site_url: Option<String>,
+
     /// Path to data directory
     #[arg(long)]
     pub data_dir: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub storage: StorageConfig,
     pub auth: AuthConfig,
+    pub tls: TlsConfig,
+    pub instance_name: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -36,6 +42,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    pub site_url: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -55,6 +62,16 @@ pub struct StorageConfig {
 pub struct AuthConfig {
     pub cookie_name: String,
     pub session_hours: u64,
+    /// Disable localhost authentication bypass (force auth even on localhost)
+    /// Useful for testing or production environments that want strict auth
+    pub disable_localhost_bypass: bool,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct TlsConfig {
+    pub enabled: bool,
+    pub http_port: u16,
 }
 
 impl Default for ServerConfig {
@@ -62,6 +79,7 @@ impl Default for ServerConfig {
         Self {
             host: "0.0.0.0".to_string(),
             port: 6969,
+            site_url: None,
         }
     }
 }
@@ -71,6 +89,29 @@ impl Default for AuthConfig {
         Self {
             cookie_name: "salita_session".to_string(),
             session_hours: 720,
+            disable_localhost_bypass: false,
+        }
+    }
+}
+
+impl Default for TlsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            http_port: 6970,
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server: ServerConfig::default(),
+            database: DatabaseConfig::default(),
+            storage: StorageConfig::default(),
+            auth: AuthConfig::default(),
+            tls: TlsConfig::default(),
+            instance_name: "salita".to_string(),
         }
     }
 }
@@ -96,6 +137,9 @@ impl Config {
         }
         if let Some(port) = cli.port {
             config.server.port = port;
+        }
+        if let Some(ref site_url) = cli.site_url {
+            config.server.site_url = Some(site_url.clone());
         }
 
         // Resolve paths relative to data dir
@@ -124,6 +168,17 @@ impl Config {
     pub fn uploads_path(&self) -> &PathBuf {
         self.storage.path.as_ref().unwrap()
     }
+
+    pub fn site_url(&self) -> String {
+        self.server
+            .site_url
+            .clone()
+            .unwrap_or_else(|| crate::auth::webauthn::default_site_url(self.server.port))
+    }
+
+    pub fn tls_enabled(&self) -> bool {
+        self.tls.enabled
+    }
 }
 
 #[cfg(test)]
@@ -147,6 +202,7 @@ mod tests {
             config: None,
             host: None,
             port: None,
+            site_url: None,
             data_dir: Some(PathBuf::from("/tmp/test-salita")),
         };
         assert_eq!(Config::data_dir(&cli), PathBuf::from("/tmp/test-salita"));
@@ -158,6 +214,7 @@ mod tests {
             config: None,
             host: None,
             port: None,
+            site_url: None,
             data_dir: None,
         };
         let dir = Config::data_dir(&cli);
@@ -171,6 +228,7 @@ mod tests {
             config: None,
             host: None,
             port: None,
+            site_url: None,
             data_dir: Some(tmp.path().to_path_buf()),
         };
         let config = Config::load(&cli).unwrap();
@@ -187,6 +245,7 @@ mod tests {
             config: None,
             host: Some("127.0.0.1".to_string()),
             port: Some(8080),
+            site_url: None,
             data_dir: Some(tmp.path().to_path_buf()),
         };
         let config = Config::load(&cli).unwrap();
@@ -216,6 +275,7 @@ session_hours = 24
             config: Some(config_path),
             host: None,
             port: None,
+            site_url: None,
             data_dir: Some(tmp.path().to_path_buf()),
         };
         let config = Config::load(&cli).unwrap();
@@ -243,10 +303,65 @@ port = 9000
             config: Some(config_path),
             host: Some("10.0.0.1".to_string()),
             port: Some(4000),
+            site_url: None,
             data_dir: Some(tmp.path().to_path_buf()),
         };
         let config = Config::load(&cli).unwrap();
         assert_eq!(config.server.host, "10.0.0.1");
         assert_eq!(config.server.port, 4000);
+    }
+
+    #[test]
+    fn site_url_defaults_to_localhost() {
+        let config = Config::default();
+        assert_eq!(config.site_url(), "http://localhost:6969");
+    }
+
+    #[test]
+    fn site_url_uses_configured_value() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config_path = tmp.path().join("config.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+[server]
+site_url = "http://salita.local:6969"
+"#,
+        )
+        .unwrap();
+
+        let cli = Cli {
+            config: Some(config_path),
+            host: None,
+            port: None,
+            site_url: None,
+            data_dir: Some(tmp.path().to_path_buf()),
+        };
+        let config = Config::load(&cli).unwrap();
+        assert_eq!(config.site_url(), "http://salita.local:6969");
+    }
+
+    #[test]
+    fn site_url_cli_overrides_toml() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config_path = tmp.path().join("config.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+[server]
+site_url = "http://salita.local:6969"
+"#,
+        )
+        .unwrap();
+
+        let cli = Cli {
+            config: Some(config_path),
+            host: None,
+            port: None,
+            site_url: Some("http://myserver.local:8080".to_string()),
+            data_dir: Some(tmp.path().to_path_buf()),
+        };
+        let config = Config::load(&cli).unwrap();
+        assert_eq!(config.site_url(), "http://myserver.local:8080");
     }
 }

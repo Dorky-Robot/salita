@@ -4,6 +4,10 @@
 [server]
 host = "0.0.0.0"
 port = 6969
+# Site URL for LAN access (used as the WebAuthn origin).
+# Set this to your .local hostname so passkeys work from other devices.
+# Default: http://localhost:{port}
+# site_url = "http://salita.local:6969"
 
 [database]
 # Path to SQLite database file
@@ -20,3 +24,18 @@ port = 6969
 cookie_name = "salita_session"
 # Session duration in hours
 session_hours = 720  # 30 days
+# Disable localhost authentication bypass
+# Set to true to require authentication even from localhost (useful for testing)
+# Default: false
+# disable_localhost_bypass = false
+
+[tls]
+# Enable TLS/HTTPS mode
+# When enabled, runs HTTPS on main port and HTTP on http_port (for certificate trust flow)
+enabled = false
+# HTTP port for certificate trust/onboarding (only used when TLS is enabled)
+http_port = 6970
+
+# Instance name used in TLS certificates
+# Default: "salita"
+instance_name = "salita"

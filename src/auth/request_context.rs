@@ -108,17 +108,55 @@ pub fn is_lan_host(host: &str) -> bool {
 /// Localhost takes precedence over LAN
 pub fn detect_origin(
     connect_info: &ConnectInfo<SocketAddr>,
-    host: Option<&str>,
+    _host: Option<&str>,
 ) -> RequestOrigin {
+    let ip = connect_info.0.ip();
+
     // First check if the actual socket connection is from localhost
     if is_local_request(connect_info) {
         return RequestOrigin::Localhost;
     }
 
-    // Then check if the Host header indicates a LAN address
-    if let Some(host_str) = host {
-        if is_lan_host(host_str) {
-            return RequestOrigin::Lan;
+    // Check if the socket IP (not Host header) is from LAN
+    match ip {
+        IpAddr::V4(addr) => {
+            let octets = addr.octets();
+            // 10.0.0.0/8
+            if octets[0] == 10 {
+                return RequestOrigin::Lan;
+            }
+            // 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+            if octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31 {
+                return RequestOrigin::Lan;
+            }
+            // 192.168.0.0/16
+            if octets[0] == 192 && octets[1] == 168 {
+                return RequestOrigin::Lan;
+            }
+        }
+        IpAddr::V6(addr) => {
+            // Check for IPv6-mapped IPv4 addresses
+            if let Some(ipv4) = addr.to_ipv4_mapped() {
+                let octets = ipv4.octets();
+                if octets[0] == 10 {
+                    return RequestOrigin::Lan;
+                }
+                if octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31 {
+                    return RequestOrigin::Lan;
+                }
+                if octets[0] == 192 && octets[1] == 168 {
+                    return RequestOrigin::Lan;
+                }
+            }
+            // IPv6 ULA (Unique Local Address) fc00::/7
+            let segments = addr.segments();
+            if segments[0] >= 0xfc00 && segments[0] <= 0xfdff {
+                return RequestOrigin::Lan;
+            }
+            // IPv6 link-local fe80::/10
+            if segments[0] >= 0xfe80 && segments[0] <= 0xfebf {
+                return RequestOrigin::Lan;
+            }
         }
     }
 

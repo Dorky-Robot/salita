@@ -348,12 +348,15 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `mutation {
-            removeNode(nodeId: "${nodeId}") {
+          query: `mutation RemoveNode($nodeId: String!) {
+            removeNode(nodeId: $nodeId) {
               success
               message
             }
-          }`
+          }`,
+          variables: {
+            nodeId: nodeId
+          }
         })
       });
 

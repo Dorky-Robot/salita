@@ -244,17 +244,20 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `mutation {
-            registerNode(input: {
-              name: "${name}",
-              hostname: "${ip}",
-              port: ${port}
-            }) {
+          query: `mutation RegisterNode($input: RegisterNodeInput!) {
+            registerNode(input: $input) {
               success
               message
               node { id name }
             }
-          }`
+          }`,
+          variables: {
+            input: {
+              name: name,
+              hostname: ip,
+              port: parseInt(port)
+            }
+          }
         })
       });
 

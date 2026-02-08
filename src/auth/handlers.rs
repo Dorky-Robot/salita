@@ -518,6 +518,11 @@ pub async fn pair_verify(
         AppError::BadRequest("Invalid or expired pairing code".into())
     })?;
 
+    // Check if challenge has expired
+    if std::time::Instant::now() >= challenge.expires_at {
+        return Err(AppError::BadRequest("Pairing code expired".into()));
+    }
+
     // Normalize PIN (strip non-digits)
     let submitted_pin = req.pin.chars().filter(|c| c.is_ascii_digit()).collect::<String>();
 
@@ -597,10 +602,16 @@ pub struct MeshGeneratePinRequest {
 
 /// POST /mesh/generate-pin — Generate a PIN for this device to join a mesh
 /// Returns: { pin: "123456", expires_at: timestamp }
+/// Only allow from Localhost or LAN (reject External)
 pub async fn mesh_generate_pin(
     State(state): State<AppState>,
-    Json(req): Json<MeshGeneratePinRequest>,
+    origin: RequestOrigin,
+    Json(_req): Json<MeshGeneratePinRequest>,
 ) -> AppResult<Response> {
+    // External users cannot generate mesh PINs
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
+    }
     // Generate a PIN
     let pin = crate::auth::pairing::generate_pin();
     let code = "mesh-join".to_string(); // Fixed code for mesh joining
@@ -634,10 +645,16 @@ pub struct MeshVerifyPinRequest {
 
 /// POST /mesh/verify-pin — Verify a PIN from a remote node trying to add this device
 /// Returns: { success: true } or error
+/// Only allow from Localhost or LAN (reject External)
 pub async fn mesh_verify_pin(
     State(state): State<AppState>,
+    origin: RequestOrigin,
     Json(req): Json<MeshVerifyPinRequest>,
 ) -> AppResult<Response> {
+    // External users cannot verify mesh PINs
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
+    }
     // Check if the PIN matches the stored challenge
     let is_valid = {
         let pairings = state.pairings.lock().await;

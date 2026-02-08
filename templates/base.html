@@ -23,11 +23,12 @@
         <a href="/services">Services</a>
       </div>
       <div class="nav__actions">
-        <button class="nav__btn" title="Connect a device"
-                hx-get="/connect/qr" hx-target="#modal-container" hx-swap="innerHTML">
-          <i class="ph ph-qr-code"></i>
+        <button class="nav__btn" title="Join this mesh"
+                hx-get="/mesh/join-modal" hx-target="#modal-container" hx-swap="innerHTML">
+          <i class="ph ph-link"></i>
         </button>
-        <button class="nav__btn" title="Settings" disabled>
+        <button class="nav__btn" title="Settings"
+                hx-get="/settings/modal" hx-target="#modal-container" hx-swap="innerHTML">
           <i class="ph ph-gear-six"></i>
         </button>
       </div>

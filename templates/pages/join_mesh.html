@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Join Mesh Network — Salita{% endblock %}
+
+{% block head %}
+<style>
+  .join-container {
+    max-width: 600px;
+    margin: 4rem auto;
+    text-align: center;
+  }
+
+  .join-header {
+    margin-bottom: 3rem;
+  }
+
+  .join-header__icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .join-header__title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .join-header__subtitle {
+    color: #666;
+    font-size: 1.1rem;
+  }
+
+  .join-card {
+    background: white;
+    border: 2px solid #3b82f6;
+    border-radius: 16px;
+    padding: 3rem 2rem;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1);
+  }
+
+  .device-info {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .device-info__label {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+  }
+
+  .device-info__value {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #000;
+  }
+
+  .pin-display {
+    margin: 2rem 0;
+  }
+
+  .pin-display__label {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: #374151;
+  }
+
+  .pin-display__code {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    font-size: 3rem;
+    font-weight: 700;
+    font-family: 'SF Mono', Monaco, monospace;
+    letter-spacing: 1rem;
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin: 0 auto;
+    display: inline-block;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .instructions {
+    text-align: left;
+    background: #fffbeb;
+    border: 2px solid #fbbf24;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .instructions__title {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .instructions ol {
+    margin: 0;
+    padding-left: 1.5rem;
+  }
+
+  .instructions li {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+  }
+
+  .status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 2rem;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #1e40af;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .qr-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .qr-section__title {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+
+  #qr-code {
+    display: inline-block;
+  }
+</style>
+
+<script>
+  // PIN is provided by the server when the join token was used
+  const pin = '{{ pin }}';
+  let checkInterval;
+
+  function initJoinPage() {
+    // Display the PIN
+    document.getElementById('pin-code').textContent = pin;
+
+    // Start checking if we've been added to a mesh
+    checkInterval = setInterval(checkMeshStatus, 3000);
+  }
+
+  async function checkMeshStatus() {
+    try {
+      // Check if this node is now registered in a mesh
+      const response = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: '{ nodes { id } }'
+        })
+      });
+
+      const result = await response.json();
+      if (result.data?.nodes && result.data.nodes.length > 1) {
+        // We're in a mesh with other nodes!
+        clearInterval(checkInterval);
+        showSuccess();
+      }
+    } catch (error) {
+      // Ignore errors, keep checking
+    }
+  }
+
+  function showSuccess() {
+    const statusEl = document.querySelector('.status-indicator');
+    statusEl.innerHTML = '<span style="color: #22c55e; font-size: 1.5rem;">✓</span> Successfully joined mesh!';
+    statusEl.style.background = '#dcfce7';
+    statusEl.style.color = '#166534';
+
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 2000);
+  }
+
+  document.addEventListener('DOMContentLoaded', initJoinPage);
+
+  window.addEventListener('beforeunload', () => {
+    if (checkInterval) clearInterval(checkInterval);
+  });
+</script>
+{% endblock %}
+
+{% block nav %}
+<nav class="nav">
+  <div class="container nav__inner">
+    <a href="/" class="nav__brand">Salita</a>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="join-container">
+  <div class="join-header">
+    <div class="join-header__icon">🌐</div>
+    <h1 class="join-header__title">Join Your Mesh</h1>
+    <p class="join-header__subtitle">Add this device to your personal mesh network</p>
+  </div>
+
+  <div class="join-card">
+    <div class="device-info">
+      <div class="device-info__label">This device is available at:</div>
+      <div class="device-info__value">{{ local_ip }}:6969</div>
+    </div>
+
+    <div class="pin-display">
+      <div class="pin-display__label">Your 6-Digit PIN:</div>
+      <div class="pin-display__code" id="pin-code">------</div>
+    </div>
+
+    <div class="instructions">
+      <div class="instructions__title">
+        <i class="ph ph-info"></i>
+        How to Add This Device
+      </div>
+      <ol>
+        <li>On <strong>any device already in your mesh</strong>, open the Dashboard</li>
+        <li>Click <strong>"Add Device"</strong></li>
+        <li>Enter this device's <strong>IP and PIN</strong> shown above</li>
+        <li>That's it! Joining one device connects you to the entire mesh</li>
+      </ol>
+    </div>
+
+    <div class="qr-section">
+      <div class="qr-section__title">Or scan this QR code from a mobile device:</div>
+      <canvas id="qr-code"></canvas>
+    </div>
+
+    <div class="status-indicator">
+      <div class="spinner"></div>
+      Waiting for connection...
+    </div>
+  </div>
+</div>
+{% endblock %}

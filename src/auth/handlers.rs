@@ -9,6 +9,7 @@ use webauthn_rs::prelude::*;
 
 use crate::auth::session;
 use crate::auth::webauthn::PendingRegistration;
+use crate::auth::RequestOrigin;
 use crate::error::{AppError, AppResult};
 use crate::routes::home::Html;
 use crate::state::AppState;
@@ -83,7 +84,18 @@ fn get_cookie_value<'a>(parts: &'a axum::http::request::Parts, name: &str) -> Op
 // -- Setup handlers --
 
 /// GET /auth/setup — render setup page (only if no users exist)
-pub async fn setup_page(State(state): State<AppState>) -> AppResult<Response> {
+/// Only allow from Localhost or External (reject LAN - they should use localhost or ngrok)
+pub async fn setup_page(
+    State(state): State<AppState>,
+    origin: RequestOrigin,
+) -> AppResult<Response> {
+    // LAN users should use localhost or external URL for setup
+    if origin == RequestOrigin::Lan {
+        return Err(AppError::BadRequest(
+            "Setup must be done from localhost or external URL".into(),
+        ));
+    }
+
     let conn = state.db.get()?;
     let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
 
@@ -236,8 +248,13 @@ pub async fn setup_finish(
 // -- Login handlers --
 
 /// GET /auth/login — render login page
-pub async fn login_page() -> Html<LoginTemplate> {
-    Html(LoginTemplate)
+pub async fn login_page(origin: RequestOrigin) -> AppResult<Response> {
+    // Localhost is already authenticated, redirect to home
+    if origin == RequestOrigin::Localhost {
+        return Ok(Redirect::to("/").into_response());
+    }
+
+    Ok(Html(LoginTemplate).into_response())
 }
 
 /// POST /auth/login/start — begin passkey authentication ceremony
@@ -386,6 +403,7 @@ pub async fn logout(
 pub struct PairVerifyRequest {
     pub code: String,
     pub pin: String,
+    pub linking_code: String,
 }
 
 /// GET /pair — render pairing page (mobile side)
@@ -419,21 +437,40 @@ pub async fn pair_check(
         .into_response())
 }
 
-/// POST /auth/pair/start — generate pairing code + PIN (desktop side)
-/// Returns: { code, pin, url, expires_at }
-pub async fn pair_start(State(state): State<AppState>) -> AppResult<Response> {
+/// POST /auth/pair/start — generate pairing code + PIN + linking code (desktop side)
+/// Returns: { code, pin, url, linkingCode, expiresAt }
+/// Only allow from Localhost or authenticated users (reject External non-authenticated)
+pub async fn pair_start(
+    State(state): State<AppState>,
+    origin: RequestOrigin,
+) -> AppResult<Response> {
+    // Only allow from localhost or already authenticated sessions
+    // External users must authenticate first before they can pair
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
+    }
     // Generate random code and PIN
     let code = uuid::Uuid::new_v4().to_string();
     let pin = crate::auth::pairing::generate_pin();
 
-    // Calculate expiry timestamp (30 seconds from now)
-    let expires_at = chrono::Utc::now().timestamp_millis() + 30_000;
+    // Calculate expiry timestamp (60 seconds from now)
+    let expires_at = chrono::Utc::now().timestamp_millis() + 60_000;
 
-    // Store challenge
+    // Store pairing challenge
     {
         let mut pairings = state.pairings.lock().await;
         pairings.insert(code.clone(), pin.clone());
     }
+
+    // Generate linking code (for verification)
+    // TODO: Get actual user_id from session when multi-user is implemented
+    let linking_code = {
+        let mut linking = state.linking_codes.lock().await;
+        linking.generate(
+            "owner".to_string(), // Placeholder for now
+            crate::auth::linking::LinkPurpose::PairDevice,
+        )
+    };
 
     // Build pairing URL using LAN IP (HTTPS main port)
     let lan_ip = local_ip_address::local_ip()
@@ -445,6 +482,7 @@ pub async fn pair_start(State(state): State<AppState>) -> AppResult<Response> {
         "code": code,
         "pin": pin,
         "url": pair_url,
+        "linkingCode": linking_code,
         "expiresAt": expires_at,
     });
 
@@ -458,10 +496,18 @@ pub async fn pair_start(State(state): State<AppState>) -> AppResult<Response> {
 
 /// POST /auth/pair/verify — verify code + PIN and create session (mobile side)
 /// Returns: { ok: true } with session cookie
+/// Only allow from LAN or Localhost (reject External - they must use passkey)
 pub async fn pair_verify(
     State(state): State<AppState>,
+    origin: RequestOrigin,
     Json(req): Json<PairVerifyRequest>,
 ) -> AppResult<Response> {
+    // External users must use passkey authentication, not QR+PIN
+    if origin == RequestOrigin::External {
+        return Err(AppError::BadRequest(
+            "QR+PIN pairing not available externally. Please use passkey login.".into(),
+        ));
+    }
     // Retrieve challenge (but don't remove it yet - mark as completed instead)
     let challenge = {
         let pairings = state.pairings.lock().await;
@@ -479,35 +525,30 @@ pub async fn pair_verify(
         return Err(AppError::BadRequest("Invalid PIN".into()));
     }
 
-    // Mark as completed (for desktop polling)
+    // Verify linking code
+    let linking = {
+        let mut linking_codes = state.linking_codes.lock().await;
+        linking_codes.verify(&req.linking_code)
+    };
+
+    let linking = linking.ok_or_else(|| {
+        AppError::BadRequest("Invalid or expired linking code".into())
+    })?;
+
+    // Verify linking code purpose is for pairing
+    if !matches!(linking.purpose, crate::auth::linking::LinkPurpose::PairDevice) {
+        return Err(AppError::BadRequest("Linking code not valid for device pairing".into()));
+    }
+
+    // Mark pairing as completed (for desktop polling)
     {
         let mut pairings = state.pairings.lock().await;
         pairings.mark_completed(&req.code);
     }
 
-    // Find or create a user (for now, we'll create a default paired user)
-    // In the future, you might want to link this to an existing user
-    let conn = state.db.get()?;
-
-    let user_id: Option<String> = conn
-        .query_row(
-            "SELECT id FROM users WHERE username = 'paired-user' LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    let user_id = if let Some(id) = user_id {
-        id
-    } else {
-        // Create a default paired user
-        let new_user_id = uuid::Uuid::now_v7().to_string();
-        conn.execute(
-            "INSERT INTO users (id, username, display_name, is_admin) VALUES (?1, 'paired-user', 'Paired User', 1)",
-            params![new_user_id],
-        )?;
-        new_user_id
-    };
+    // Use the user_id from the linking code
+    // This links the new PIN session to the existing user who generated the linking code
+    let user_id = linking.user_id;
 
     // Create session
     let token = session::create_session(&state.db, &user_id, state.config.auth.session_hours)?;
@@ -521,6 +562,110 @@ pub async fn pair_verify(
             header::SET_COOKIE,
             session_cookie(&token, state.config.auth.session_hours),
         )]),
+        serde_json::to_string(&body)?,
+    )
+        .into_response())
+}
+
+// -- Request Context Handler --
+
+/// GET /auth/context — returns request origin for client-side conditional rendering
+/// Returns: { origin: "localhost"|"lan"|"external" }
+pub async fn auth_context(origin: RequestOrigin) -> AppResult<Response> {
+    let origin_str = match origin {
+        RequestOrigin::Localhost => "localhost",
+        RequestOrigin::Lan => "lan",
+        RequestOrigin::External => "external",
+    };
+
+    let body = serde_json::json!({ "origin": origin_str });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        serde_json::to_string(&body)?,
+    )
+        .into_response())
+}
+
+// -- Mesh Joining Handlers --
+
+#[derive(Deserialize)]
+pub struct MeshGeneratePinRequest {
+    pub purpose: Option<String>,
+}
+
+/// POST /mesh/generate-pin — Generate a PIN for this device to join a mesh
+/// Returns: { pin: "123456", expires_at: timestamp }
+pub async fn mesh_generate_pin(
+    State(state): State<AppState>,
+    Json(req): Json<MeshGeneratePinRequest>,
+) -> AppResult<Response> {
+    // Generate a PIN
+    let pin = crate::auth::pairing::generate_pin();
+    let code = "mesh-join".to_string(); // Fixed code for mesh joining
+
+    // Store pairing challenge (60 seconds TTL)
+    {
+        let mut pairings = state.pairings.lock().await;
+        pairings.insert(code.clone(), pin.clone());
+    }
+
+    let expires_at = chrono::Utc::now().timestamp_millis() + 60_000;
+
+    let body = serde_json::json!({
+        "pin": pin,
+        "code": code,
+        "expires_at": expires_at,
+    });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        serde_json::to_string(&body)?,
+    )
+        .into_response())
+}
+
+#[derive(Deserialize)]
+pub struct MeshVerifyPinRequest {
+    pub pin: String,
+}
+
+/// POST /mesh/verify-pin — Verify a PIN from a remote node trying to add this device
+/// Returns: { success: true } or error
+pub async fn mesh_verify_pin(
+    State(state): State<AppState>,
+    Json(req): Json<MeshVerifyPinRequest>,
+) -> AppResult<Response> {
+    // Check if the PIN matches the stored challenge
+    let is_valid = {
+        let pairings = state.pairings.lock().await;
+        pairings
+            .challenges
+            .get("mesh-join")
+            .map(|challenge| challenge.pin == req.pin)
+            .unwrap_or(false)
+    };
+
+    if !is_valid {
+        return Err(AppError::BadRequest("Invalid or expired PIN".into()));
+    }
+
+    // Mark as completed
+    {
+        let mut pairings = state.pairings.lock().await;
+        pairings.mark_completed("mesh-join");
+    }
+
+    let body = serde_json::json!({
+        "success": true,
+        "message": "PIN verified successfully",
+    });
+
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
         serde_json::to_string(&body)?,
     )
         .into_response())

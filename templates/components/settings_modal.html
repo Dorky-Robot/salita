@@ -1,0 +1,139 @@
+<div class="modal-overlay" id="settings-modal" onclick="closeSettingsModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal__header">
+      <span class="modal__title">Settings</span>
+      <button class="modal__close" onclick="closeSettingsModal()"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal__body">
+      <div class="settings__section">
+        <h3 class="settings__heading">Account</h3>
+        <div class="settings__item">
+          <div class="settings__info">
+            <span class="settings__label">User</span>
+            <span class="settings__value">{{ username }}</span>
+          </div>
+        </div>
+        {% if show_signout %}
+        <div class="settings__item">
+          <form method="post" action="/auth/logout" onsubmit="handleSignOut(event)">
+            <button type="submit" class="settings__btn settings__btn--danger">
+              <i class="ph ph-sign-out"></i>
+              <span>Sign Out</span>
+            </button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.settings__section {
+  padding: 0.5rem 0;
+}
+
+.settings__heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #78716c;
+  margin-bottom: 1rem;
+}
+
+.settings__item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.settings__item:last-child {
+  border-bottom: none;
+}
+
+.settings__info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings__label {
+  font-size: 0.875rem;
+  color: #1c1917;
+  font-weight: 500;
+}
+
+.settings__value {
+  font-size: 0.875rem;
+  color: #78716c;
+}
+
+.settings__btn {
+  width: 100%;
+  height: 2.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.settings__btn--danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.settings__btn--danger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.settings__btn i {
+  font-size: 1.125rem;
+}
+</style>
+
+<script>
+function closeSettingsModal(event) {
+  if (!event || event.target === event.currentTarget) {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+      modal.remove();
+    }
+  }
+}
+
+function handleSignOut(event) {
+  event.preventDefault();
+  const form = event.target;
+
+  fetch(form.action, {
+    method: 'POST',
+    credentials: 'same-origin'
+  })
+  .then(response => {
+    if (response.ok || response.redirected) {
+      // Close modal and redirect
+      closeSettingsModal();
+      window.location.href = '/';
+    }
+  })
+  .catch(err => {
+    console.error('Sign out failed:', err);
+    alert('Failed to sign out. Please try again.');
+  });
+}
+
+// Close on escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeSettingsModal();
+  }
+});
+</script>

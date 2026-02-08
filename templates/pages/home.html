@@ -2,6 +2,35 @@
 
 {% block title %}Welcome — Salita{% endblock %}
 
+{% block head %}
+<script>
+  // Detect if user is authenticated by checking if /stream is accessible
+  async function checkAuth() {
+    try {
+      const res = await fetch('/stream', { redirect: 'manual' });
+      // If we get a redirect to login, user is not authenticated
+      // If we get OK or other response, user is authenticated
+      return res.status !== 401 && res.type !== 'opaqueredirect';
+    } catch {
+      return false;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const isAuthenticated = await checkAuth();
+    const actions = document.getElementById('hero-actions');
+
+    if (isAuthenticated) {
+      // Authenticated: show app interface
+      actions.innerHTML = '<a href="/stream" class="btn btn--primary">View Stream</a>';
+    } else {
+      // Not authenticated: show login link
+      actions.innerHTML = '<a href="/auth/login" class="btn btn--primary">Sign In</a>';
+    }
+  });
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="hero">
   <h1 class="hero__title">Welcome to Salita</h1>
@@ -16,9 +45,9 @@
     <a href="/auth/setup" class="btn btn--primary">Set Up Admin Account</a>
   </div>
   {% else %}
-  <div class="hero__actions">
+  <div class="hero__actions" id="hero-actions">
+    <!-- Actions will be dynamically loaded based on auth state -->
     <a href="/stream" class="btn btn--primary">View Stream</a>
-    <a href="/auth/login" class="btn btn--secondary">Sign In</a>
   </div>
   {% endif %}
 </div>

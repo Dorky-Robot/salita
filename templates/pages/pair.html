@@ -36,7 +36,16 @@
       font-size: 0.875rem;
       margin-bottom: 1.5rem;
     }
-    .pin-input {
+    .input-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #78716c;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .pin-input, .link-input {
       width: 100%;
       height: 3.5rem;
       padding: 0 0.75rem;
@@ -51,7 +60,12 @@
       text-align: center;
       transition: border-color 0.2s;
     }
-    .pin-input:focus {
+    .link-input {
+      font-size: 1.125rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .pin-input:focus, .link-input:focus {
       outline: none;
       border-color: #1c1917;
     }
@@ -85,7 +99,9 @@
 <body>
   <div class="card">
     <h1>Pair Device</h1>
-    <p class="subtitle">Enter the 6-digit PIN shown on your computer.</p>
+    <p class="subtitle">Enter the PIN and linking code shown on your computer.</p>
+
+    <label class="input-label">6-Digit PIN</label>
     <input
       type="text"
       id="pin-input"
@@ -98,6 +114,18 @@
       inputmode="numeric"
       autofocus
     >
+
+    <label class="input-label">Linking Code</label>
+    <input
+      type="text"
+      id="link-input"
+      class="link-input"
+      placeholder="ALPHA-BRAVO-42"
+      autocorrect="off"
+      autocapitalize="characters"
+      autocomplete="off"
+    >
+
     <button id="pair-btn" class="btn">Confirm</button>
     <p class="error" id="error-msg"></p>
   </div>
@@ -105,6 +133,7 @@
   <script>
     const code = new URLSearchParams(location.search).get("code");
     const pinInput = document.getElementById("pin-input");
+    const linkInput = document.getElementById("link-input");
     const pairBtn = document.getElementById("pair-btn");
     const errorMsg = document.getElementById("error-msg");
 
@@ -115,10 +144,16 @@
 
     async function submitPair() {
       const pin = pinInput.value.replace(/\D/g, "");
+      const linkingCode = linkInput.value.trim().toUpperCase();
       errorMsg.textContent = "";
 
       if (!pin || pin.length !== 6) {
         errorMsg.textContent = "Enter the 6-digit PIN.";
+        return;
+      }
+
+      if (!linkingCode) {
+        errorMsg.textContent = "Enter the linking code.";
         return;
       }
 
@@ -127,7 +162,7 @@
         const res = await fetch("/auth/pair/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, pin }),
+          body: JSON.stringify({ code, pin, linking_code: linkingCode }),
         });
 
         if (!res.ok) {
@@ -144,6 +179,9 @@
 
     pairBtn.addEventListener("click", submitPair);
     pinInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") linkInput.focus();
+    });
+    linkInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submitPair();
     });
   </script>

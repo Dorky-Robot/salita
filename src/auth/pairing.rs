@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-const PAIR_TTL_SECS: u64 = 30;
+const PAIR_TTL_SECS: u64 = 60;
 
 /// A pending pairing challenge with code, PIN, and expiry.
 #[derive(Debug, Clone)]
@@ -54,6 +54,7 @@ impl PairingStore {
 
     /// Retrieve and remove a pairing challenge by code.
     /// Returns None if the code doesn't exist or has expired.
+    #[allow(dead_code)]
     pub fn take(&mut self, code: &str) -> Option<PairingChallenge> {
         self.clear_stale();
         let challenge = self.challenges.remove(code)?;

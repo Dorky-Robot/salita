@@ -1,8 +1,10 @@
-use axum::extract::FromRequestParts;
+use axum::extract::{ConnectInfo, FromRequestParts};
 use axum::http::header;
 use axum::http::request::Parts;
 use rusqlite::params;
+use std::net::SocketAddr;
 
+use crate::auth::{detect_origin, RequestOrigin};
 use crate::error::AppError;
 use crate::state::AppState;
 
@@ -16,6 +18,7 @@ pub struct CurrentUser {
 
 /// Extractor that requires authentication.
 /// Returns 401 if no valid session found.
+/// Localhost requests are auto-authenticated with a synthetic user (unless disabled in config).
 impl FromRequestParts<AppState> for CurrentUser {
     type Rejection = AppError;
 
@@ -23,6 +26,19 @@ impl FromRequestParts<AppState> for CurrentUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        // Extract request origin to check if localhost
+        let origin = RequestOrigin::from_request_parts(parts, state).await?;
+
+        // Auto-authenticate localhost requests (unless disabled in config)
+        if origin == RequestOrigin::Localhost && !state.config.auth.disable_localhost_bypass {
+            return Ok(CurrentUser {
+                id: "localhost".to_string(),
+                username: "localhost".to_string(),
+                is_admin: true,
+            });
+        }
+
+        // For non-localhost, require session authentication
         let token = extract_session_token(parts).ok_or(AppError::Unauthorized)?;
 
         let conn = state.db.get()?;
@@ -44,6 +60,7 @@ impl FromRequestParts<AppState> for CurrentUser {
 }
 
 /// Optional user extractor — returns None instead of 401 when not authenticated.
+/// Localhost requests are auto-authenticated with a synthetic user (unless disabled in config).
 pub struct MaybeUser(pub Option<CurrentUser>);
 
 impl FromRequestParts<AppState> for MaybeUser {
@@ -53,10 +70,47 @@ impl FromRequestParts<AppState> for MaybeUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        // Extract request origin to check if localhost
+        let origin = RequestOrigin::from_request_parts(parts, state).await?;
+
+        // Auto-authenticate localhost requests (unless disabled in config)
+        if origin == RequestOrigin::Localhost && !state.config.auth.disable_localhost_bypass {
+            return Ok(MaybeUser(Some(CurrentUser {
+                id: "localhost".to_string(),
+                username: "localhost".to_string(),
+                is_admin: true,
+            })));
+        }
+
+        // For non-localhost, try session authentication but don't fail
         match CurrentUser::from_request_parts(parts, state).await {
             Ok(user) => Ok(MaybeUser(Some(user))),
             Err(_) => Ok(MaybeUser(None)),
         }
+    }
+}
+
+/// Extractor for RequestOrigin based on socket address and Host header
+impl FromRequestParts<AppState> for RequestOrigin {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        // Extract ConnectInfo to get socket address
+        let connect_info = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .ok_or_else(|| AppError::Internal("Missing ConnectInfo extension".into()))?;
+
+        // Extract Host header
+        let host = parts
+            .headers
+            .get(header::HOST)
+            .and_then(|h| h.to_str().ok());
+
+        Ok(detect_origin(connect_info, host))
     }
 }
 

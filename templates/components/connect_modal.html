@@ -25,14 +25,17 @@
 
       <!-- Step 2: Pair with PIN -->
       <div class="connect__panel" data-panel="2">
-        <p class="connect__subtitle">Scan the QR code and enter the PIN on your phone.</p>
+        <p class="connect__subtitle">Scan the QR code and enter both codes on your phone.</p>
         <div class="modal__qr" id="pair-qr"></div>
         <div class="connect__pin" id="pair-pin">------</div>
+        <div class="connect__linking">
+          <p class="connect__linking-label">Linking Code:</p>
+          <div class="connect__linking-code" id="linking-code">---</div>
+        </div>
         <div class="connect__countdown" id="pair-countdown"></div>
         <p class="connect__error" id="pair-error"></p>
         <button class="connect__btn connect__btn--secondary" onclick="goToStep(1)">Back</button>
       </div>
-
       <!-- Step 3: Success -->
       <div class="connect__panel" data-panel="3">
         <div class="connect__success">✓</div>
@@ -97,6 +100,31 @@
   color: #1c1917;
   margin: 1rem 0;
   font-family: monospace;
+}
+
+.connect__linking {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #f5f5f4;
+  border-radius: 0.5rem;
+  border: 2px dashed #d6d3d1;
+}
+
+.connect__linking-label {
+  font-size: 0.75rem;
+  color: #78716c;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.connect__linking-code {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1c1917;
+  font-family: monospace;
+  letter-spacing: 0.1em;
 }
 
 .connect__countdown {
@@ -228,8 +256,9 @@ async function refreshPairCode() {
       });
     }
 
-    // Show PIN
+    // Show PIN and linking code
     document.getElementById('pair-pin').textContent = data.pin;
+    document.getElementById('linking-code').textContent = data.linkingCode || '---';
 
     // Countdown
     clearInterval(pairCountdownTimer);

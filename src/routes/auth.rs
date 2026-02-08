@@ -13,8 +13,11 @@ pub fn router() -> Router<AppState> {
         .route("/auth/login/start", post(handlers::login_start))
         .route("/auth/login/finish", post(handlers::login_finish))
         .route("/auth/logout", post(handlers::logout))
+        .route("/auth/context", get(handlers::auth_context))
         .route("/pair", get(handlers::pair_page))
         .route("/auth/pair/start", post(handlers::pair_start))
         .route("/auth/pair/verify", post(handlers::pair_verify))
         .route("/auth/pair/check", get(handlers::pair_check))
+        .route("/mesh/generate-pin", post(handlers::mesh_generate_pin))
+        .route("/mesh/verify-pin", post(handlers::mesh_verify_pin))
 }

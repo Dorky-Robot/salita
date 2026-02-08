@@ -1,0 +1,610 @@
+<div class="modal-overlay" id="join-modal" onclick="if(event.target.id==='join-modal') closeJoinModal()">
+  <div class="modal" style="max-width: 600px;">
+    <div class="modal__header">
+      <h2 class="modal__title">Add Device to Mesh</h2>
+      <button class="modal__close" onclick="closeJoinModal()">
+        <i class="ph ph-x"></i>
+      </button>
+    </div>
+
+    <div class="modal__body">
+      <!-- Step Indicators -->
+      <div class="wizard-steps">
+        <div class="wizard-step wizard-step--active" data-step="1">
+          <div class="wizard-step__number">1</div>
+          <div class="wizard-step__label">Share Link</div>
+        </div>
+        <div class="wizard-step-connector"></div>
+        <div class="wizard-step" data-step="2">
+          <div class="wizard-step__number">2</div>
+          <div class="wizard-step__label">Device Connects</div>
+        </div>
+        <div class="wizard-step-connector"></div>
+        <div class="wizard-step" data-step="3">
+          <div class="wizard-step__number">3</div>
+          <div class="wizard-step__label">Complete</div>
+        </div>
+      </div>
+
+      <!-- Step 1: Share Link -->
+      <div class="wizard-panel wizard-panel--active" data-panel="1">
+        <div class="wizard-panel__content">
+          <!-- QR Method -->
+          <div class="join-section">
+            <h3 class="join-section__title">Scan QR Code</h3>
+            <div class="join-qr" id="join-qr-code">
+              <canvas id="join-qr-canvas"></canvas>
+            </div>
+          </div>
+
+          <div class="join-divider">
+            <span>OR</span>
+          </div>
+
+          <!-- Manual Method -->
+          <div class="join-section">
+            <h3 class="join-section__title">Manual Setup</h3>
+
+            <div class="join-url-box">
+              <label class="join-url-label">Send this link to the device:</label>
+              <div class="join-url">
+                <code id="join-url-code">{{ join_url }}</code>
+                <button onclick="copyJoinUrl()" class="copy-btn" title="Copy URL">
+                  <i class="ph ph-copy"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="wizard-waiting">
+            <div class="spinner"></div>
+            <p>Waiting for device to connect...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Enter PIN -->
+      <div class="wizard-panel" data-panel="2">
+        <div class="wizard-panel__content">
+          <div class="wizard-success-icon">✓</div>
+          <h3 class="wizard-panel__title">Device Connected!</h3>
+          <p class="wizard-panel__text">
+            Enter the PIN shown on the device's screen to complete setup.
+          </p>
+
+          <form id="join-pin-form" onsubmit="submitPin(event)">
+            <div class="form-group">
+              <label for="join-device-ip">Device IP</label>
+              <input
+                type="text"
+                id="join-device-ip"
+                readonly
+                class="input"
+                style="background: #f3f4f6;"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="join-device-pin">6-Digit PIN</label>
+              <input
+                type="text"
+                id="join-device-pin"
+                name="pin"
+                placeholder="123456"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                required
+                class="input"
+                style="font-size: 1.5rem; letter-spacing: 0.5rem; font-family: monospace; text-align: center;"
+                autofocus
+              />
+              <small style="color: #666; display: block; margin-top: 0.5rem;">
+                Find this on the device screen at /join
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="join-device-name">Device Name (optional)</label>
+              <input
+                type="text"
+                id="join-device-name"
+                name="name"
+                placeholder="My Phone"
+                class="input"
+              />
+            </div>
+
+            <div id="join-error" class="alert alert--error" style="display: none;"></div>
+
+            <button type="submit" class="btn btn--primary" style="width: 100%;" id="join-submit-btn">
+              <i class="ph ph-plus"></i> Add to Mesh
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Step 3: Complete -->
+      <div class="wizard-panel" data-panel="3">
+        <div class="wizard-panel__content">
+          <div class="wizard-success-icon" style="color: #22c55e;">✓</div>
+          <h3 class="wizard-panel__title">Successfully Added!</h3>
+          <p class="wizard-panel__text">
+            The device is now part of your mesh network.
+          </p>
+          <button class="btn btn--primary" style="width: 100%;" onclick="closeJoinModal()">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Override modal max-width for this specific modal */
+  #join-modal .modal {
+    max-width: 600px !important;
+    width: 90%;
+  }
+
+  /* Wizard Steps */
+  .wizard-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    padding: 0 1rem;
+  }
+
+  .wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .wizard-step__number {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+
+  .wizard-step--active .wizard-step__number {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .wizard-step--complete .wizard-step__number {
+    background: #22c55e;
+    color: white;
+  }
+
+  .wizard-step__label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+
+  .wizard-step--active .wizard-step__label {
+    color: #3b82f6;
+  }
+
+  .wizard-step-connector {
+    width: 3rem;
+    height: 2px;
+    background: #e5e7eb;
+    margin: 0 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .wizard-panel {
+    display: none;
+  }
+
+  .wizard-panel--active {
+    display: block;
+  }
+
+  .wizard-panel__content {
+    text-align: center;
+  }
+
+  .wizard-panel__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+  }
+
+  .wizard-panel__text {
+    color: #666;
+    margin-bottom: 1.5rem;
+  }
+
+  .wizard-success-icon {
+    font-size: 4rem;
+    color: #3b82f6;
+    margin-bottom: 0.5rem;
+  }
+
+  .wizard-waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 2rem;
+    padding: 1rem;
+    background: #f3f4f6;
+    border-radius: 8px;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .wizard-device-info {
+    background: #f3f4f6;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+  }
+
+  .wizard-device-info__label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+
+  .wizard-device-info__value {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #000;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+
+  .form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #374151;
+  }
+
+  .form-group small {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .alert {
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .alert--error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  .join-section {
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .join-section__title {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .join-qr {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .join-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #999;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0.5rem 0;
+  }
+
+  .join-divider::before,
+  .join-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .join-divider span {
+    padding: 0 1rem;
+  }
+
+  .join-url-box {
+    margin-bottom: 1rem;
+  }
+
+  .join-url-label {
+    display: block;
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+    text-align: left;
+  }
+
+  .join-steps-simple {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .join-url {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+
+  .join-url code {
+    flex: 1;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9rem;
+    color: #1e40af;
+  }
+
+  .copy-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.2s;
+  }
+
+  .copy-btn:hover {
+    color: #000;
+  }
+
+</style>
+
+<script>
+  // Use var to allow redeclaration when modal is opened multiple times
+  var joinEventSource = null;
+  var currentStep = 1;
+  var currentToken = null; // Store token for PIN verification
+
+  // Initialize wizard
+  (function() {
+    const joinUrl = '{{ join_url }}';
+    const canvas = document.getElementById('join-qr-canvas');
+
+    // Generate QR code
+    if (canvas && typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(canvas, joinUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      }, function(error) {
+        if (error) console.error('QR code generation failed:', error);
+      });
+    }
+
+    // Extract token from URL
+    const urlParams = new URLSearchParams(new URL(joinUrl).search);
+    const token = urlParams.get('token');
+
+    console.log('Join URL:', joinUrl);
+    console.log('Extracted token:', token);
+
+    if (token) {
+      // Store token for later PIN verification
+      currentToken = token;
+      console.log('Stored token in currentToken:', currentToken);
+      // Connect to SSE stream for real-time updates
+      connectToTokenStream(token);
+    } else {
+      console.error('No token found in URL!');
+    }
+  })();
+
+  function connectToTokenStream(token) {
+    // Close existing connection if any
+    if (joinEventSource) {
+      joinEventSource.close();
+    }
+
+    // Open SSE connection
+    joinEventSource = new EventSource(`/mesh/join-events?token=${token}`);
+
+    joinEventSource.addEventListener('token-used', (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Device connected!', data);
+
+      // Close SSE connection - we got what we needed
+      if (joinEventSource) {
+        joinEventSource.close();
+        joinEventSource = null;
+      }
+
+      // Auto-advance to step 2
+      goToStep(2);
+
+      // Populate device IP
+      if (data.device_ip) {
+        document.getElementById('join-device-ip').value = data.device_ip;
+      }
+    });
+
+    joinEventSource.addEventListener('error', (error) => {
+      console.error('SSE connection error:', error);
+      // Don't reconnect, token might be expired
+    });
+  }
+
+  function goToStep(step) {
+    currentStep = step;
+
+    // Update step indicators
+    document.querySelectorAll('.wizard-step').forEach((el, idx) => {
+      const stepNum = idx + 1;
+      el.classList.remove('wizard-step--active', 'wizard-step--complete');
+
+      if (stepNum < step) {
+        el.classList.add('wizard-step--complete');
+      } else if (stepNum === step) {
+        el.classList.add('wizard-step--active');
+      }
+    });
+
+    // Update panels
+    document.querySelectorAll('.wizard-panel').forEach((el) => {
+      el.classList.remove('wizard-panel--active');
+    });
+    document.querySelector(`[data-panel="${step}"]`)?.classList.add('wizard-panel--active');
+  }
+
+  async function submitPin(event) {
+    event.preventDefault();
+
+    const submitBtn = document.getElementById('join-submit-btn');
+    const errorEl = document.getElementById('join-error');
+    const form = event.target;
+
+    const ip = document.getElementById('join-device-ip').value;
+    const pin = form.pin.value.trim().replace(/\s+/g, ''); // Remove all whitespace
+    const name = form.name.value || `Device at ${ip}`;
+
+    console.log('Submitting PIN verification:', { token: currentToken, pin: pin, ip: ip });
+
+    errorEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="ph ph-spinner"></i> Adding...';
+
+    try {
+      // Verify PIN with parent server
+      const verifyResponse = await fetch('/mesh/verify-join-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: currentToken,
+          pin: pin
+        })
+      });
+
+      if (!verifyResponse.ok) {
+        throw new Error('Invalid PIN');
+      }
+
+      // Register node in mesh
+      const registerResponse = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation {
+            registerNode(input: {
+              name: "${name}",
+              hostname: "${ip}",
+              port: 6969
+            }) {
+              success
+              message
+            }
+          }`
+        })
+      });
+
+      const result = await registerResponse.json();
+
+      if (result.data?.registerNode.success) {
+        // Success! Go to step 3
+        goToStep(3);
+      } else {
+        throw new Error(result.data?.registerNode.message || 'Failed to register node');
+      }
+
+    } catch (error) {
+      errorEl.textContent = error.message;
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="ph ph-plus"></i> Add to Mesh';
+    }
+  }
+
+  function copyJoinUrl() {
+    const joinUrl = document.getElementById('join-url-code').textContent;
+    navigator.clipboard.writeText(joinUrl).then(() => {
+      const btn = event.target.closest('.copy-btn');
+      const icon = btn.querySelector('i');
+      icon.classList.remove('ph-copy');
+      icon.classList.add('ph-check');
+      setTimeout(() => {
+        icon.classList.remove('ph-check');
+        icon.classList.add('ph-copy');
+      }, 2000);
+    });
+  }
+
+  function closeJoinModal() {
+    // Close SSE connection
+    if (joinEventSource) {
+      joinEventSource.close();
+      joinEventSource = null;
+    }
+    document.getElementById('modal-container').innerHTML = '';
+  }
+</script>

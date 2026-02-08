@@ -26,13 +26,15 @@ pub struct Cli {
     pub data_dir: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub storage: StorageConfig,
     pub auth: AuthConfig,
+    pub tls: TlsConfig,
+    pub instance_name: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -60,6 +62,16 @@ pub struct StorageConfig {
 pub struct AuthConfig {
     pub cookie_name: String,
     pub session_hours: u64,
+    /// Disable localhost authentication bypass (force auth even on localhost)
+    /// Useful for testing or production environments that want strict auth
+    pub disable_localhost_bypass: bool,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct TlsConfig {
+    pub enabled: bool,
+    pub http_port: u16,
 }
 
 impl Default for ServerConfig {
@@ -77,6 +89,29 @@ impl Default for AuthConfig {
         Self {
             cookie_name: "salita_session".to_string(),
             session_hours: 720,
+            disable_localhost_bypass: false,
+        }
+    }
+}
+
+impl Default for TlsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            http_port: 6970,
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server: ServerConfig::default(),
+            database: DatabaseConfig::default(),
+            storage: StorageConfig::default(),
+            auth: AuthConfig::default(),
+            tls: TlsConfig::default(),
+            instance_name: "salita".to_string(),
         }
     }
 }
@@ -139,6 +174,10 @@ impl Config {
             .site_url
             .clone()
             .unwrap_or_else(|| crate::auth::webauthn::default_site_url(self.server.port))
+    }
+
+    pub fn tls_enabled(&self) -> bool {
+        self.tls.enabled
     }
 }
 

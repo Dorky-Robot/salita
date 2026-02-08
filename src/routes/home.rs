@@ -1,9 +1,10 @@
 use askama::Template;
 use axum::extract::State;
 use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::error::AppResult;
+use crate::extractors::MaybeUser;
 use crate::state::AppState;
 
 #[derive(Template)]
@@ -32,9 +33,18 @@ impl<T: Template> IntoResponse for Html<T> {
     }
 }
 
-pub async fn index(State(state): State<AppState>) -> AppResult<Html<HomeTemplate>> {
+pub async fn index(
+    State(state): State<AppState>,
+    maybe_user: MaybeUser,
+) -> AppResult<Response> {
+    // If user is authenticated, redirect to dashboard
+    if maybe_user.0.is_some() {
+        return Ok(Redirect::to("/dashboard").into_response());
+    }
+
+    // Otherwise show the home page
     let conn = state.db.get()?;
     let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
 
-    Ok(Html(HomeTemplate { user_count }))
+    Ok(Html(HomeTemplate { user_count }).into_response())
 }

@@ -400,10 +400,32 @@ pub async fn logout(
 // -- LAN Pairing handlers --
 
 #[derive(Deserialize)]
+pub struct NodeIdentityInfo {
+    pub node_id: String,
+    pub name: String,
+    pub hostname: String,
+    pub port: u16,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Deserialize)]
 pub struct PairVerifyRequest {
     pub code: String,
     pub pin: String,
     pub linking_code: String,
+    pub node_identity: Option<NodeIdentityInfo>,
+}
+
+#[derive(serde::Serialize)]
+pub struct PeerNodeInfo {
+    pub node_id: String,
+    pub name: String,
+    pub hostname: String,
+    pub port: u16,
+    pub capabilities: Vec<String>,
+    pub access_token: String,
+    pub permissions: Vec<String>,
+    pub expires_at: String,
 }
 
 /// GET /pair — render pairing page (mobile side)
@@ -558,7 +580,64 @@ pub async fn pair_verify(
     // Create session
     let token = session::create_session(&state.db, &user_id, state.config.auth.session_hours)?;
 
-    let body = serde_json::json!({ "ok": true });
+    // If node_identity is provided, perform bidirectional mesh registration
+    let peer_node = if let Some(node_info) = req.node_identity {
+        let conn = state.db.get()?;
+
+        // Store peer node in mesh_nodes
+        conn.execute(
+            "INSERT OR REPLACE INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, metadata)
+             VALUES (?1, ?2, ?3, ?4, 'online', ?5, datetime('now'), NULL)",
+            params![
+                &node_info.node_id,
+                &node_info.name,
+                &node_info.hostname,
+                node_info.port,
+                serde_json::to_string(&node_info.capabilities)?
+            ],
+        )?;
+
+        // Issue token for peer to call us
+        let permissions = crate::mesh::tokens::default_permissions();
+        let expires_at = (chrono::Utc::now() + chrono::Duration::days(30)).to_rfc3339();
+        let access_token = crate::mesh::tokens::issue_token(
+            &conn,
+            &node_info.node_id,
+            &permissions,
+            &expires_at,
+        )
+        .map_err(|e| AppError::Internal(format!("Failed to issue token: {}", e)))?;
+
+        // Get current node identity
+        let current_node_id: String = conn.query_row(
+            "SELECT node_id FROM current_node LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        let (current_name, current_hostname, current_port): (String, String, i64) = conn.query_row(
+            "SELECT name, hostname, port FROM mesh_nodes WHERE id = ?1",
+            [&current_node_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+
+        Some(PeerNodeInfo {
+            node_id: current_node_id,
+            name: current_name,
+            hostname: current_hostname,
+            port: current_port as u16,
+            capabilities: vec![],
+            access_token,
+            permissions: permissions.clone(),
+            expires_at,
+        })
+    } else {
+        None
+    };
+
+    let mut body = serde_json::json!({ "ok": true });
+    if let Some(peer) = peer_node {
+        body["peer_node"] = serde_json::to_value(peer)?;
+    }
 
     Ok((
         StatusCode::OK,

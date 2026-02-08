@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod extractors;
 mod graphql;
+mod mesh;
 mod routes;
 mod state;
 mod tls;
@@ -52,6 +53,32 @@ async fn main() -> anyhow::Result<()> {
     // Initialize database
     let pool = db::create_pool(config.db_path())?;
     db::run_migrations(&pool)?;
+
+    // Initialize node identity
+    let node_identity = mesh::node_identity::NodeIdentity::load_or_create(&data_dir)?;
+    tracing::info!("Node ID: {}, Name: {}", node_identity.id, node_identity.name);
+
+    // Ensure current_node table is populated
+    {
+        let conn = pool.get()?;
+        // First, ensure this node exists in mesh_nodes
+        conn.execute(
+            "INSERT OR REPLACE INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, metadata)
+             VALUES (?1, ?2, ?3, ?4, 'online', '[]', datetime('now'), NULL)",
+            params![
+                &node_identity.id,
+                &node_identity.name,
+                "localhost",
+                config.server.port
+            ],
+        )?;
+
+        // Then populate current_node
+        conn.execute(
+            "INSERT OR REPLACE INTO current_node (node_id) VALUES (?1)",
+            params![&node_identity.id],
+        )?;
+    }
 
     // Build WebAuthn instance
     let site_url = config.site_url();

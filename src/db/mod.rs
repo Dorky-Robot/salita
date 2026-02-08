@@ -32,6 +32,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "006_token_based_mesh",
         include_str!("../../migrations/006_token_based_mesh.sql"),
     ),
+    (
+        "007_cleanup_duplicate_nodes",
+        include_str!("../../migrations/007_cleanup_duplicate_nodes.sql"),
+    ),
 ];
 
 pub fn create_pool(db_path: &Path) -> anyhow::Result<DbPool> {
@@ -166,7 +170,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 6);
+        assert_eq!(count, 7);
 
         // Verify key tables exist
         let tables: Vec<String> = {
@@ -196,7 +200,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 6);
+        assert_eq!(count, 7);
     }
 
     #[test]

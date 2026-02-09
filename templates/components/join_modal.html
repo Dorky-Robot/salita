@@ -653,61 +653,35 @@
     submitBtn.innerHTML = '<i class="ph ph-spinner"></i> Adding...';
 
     try {
-      // Verify PIN with parent server
-      const verifyResponse = await fetch('/mesh/verify-join-pin', {
+      // Use v2 endpoint - combines PIN verification + registration in one call
+      const verifyResponse = await fetch('/auth/pair/verify/v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: currentToken,
-          pin: pin
+          pin: pin,
+          deviceNodeId: window.joiningDeviceNodeId || `generated-${Date.now()}`,
+          deviceName: name,
+          devicePort: 6969
         })
       });
 
       if (!verifyResponse.ok) {
-        throw new Error('Invalid PIN');
+        const errorData = await verifyResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Invalid PIN');
       }
 
-      // Register node in mesh (include node_id if available)
-      const input = {
-        name: name,
-        hostname: ip,
-        port: 6969
-      };
+      const result = await verifyResponse.json();
 
-      // Include nodeId if we received it from the joining device
-      if (window.joiningDeviceNodeId) {
-        input.nodeId = window.joiningDeviceNodeId;
-      }
-
-      const registerResponse = await fetch('/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `mutation RegisterNode($input: RegisterNodeInput!) {
-            registerNode(input: $input) {
-              success
-              message
-              accessToken
-              expiresAt
-              permissions
-            }
-          }`,
-          variables: { input }
-        })
-      });
-
-      const result = await registerResponse.json();
-
-      if (result.data?.registerNode.success) {
+      if (result.success) {
         // Store access token if provided (for peer-to-peer auth)
-        const registerData = result.data.registerNode;
-        if (registerData.accessToken) {
+        if (result.peerToken) {
           // Store token FOR peer (phone can use this to call desktop)
           const peerTokens = JSON.parse(localStorage.getItem('salita_peer_tokens') || '{}');
           peerTokens[window.joiningDeviceNodeId || ip] = {
-            token: registerData.accessToken,
-            expires_at: registerData.expiresAt,
-            permissions: registerData.permissions
+            token: result.peerToken,
+            expires_at: result.peerTokenExpiresAt,
+            permissions: result.permissions
           };
           localStorage.setItem('salita_peer_tokens', JSON.stringify(peerTokens));
           console.log('[Mesh] Stored peer token (desktop → phone)');
@@ -756,7 +730,7 @@
           loadDashboard();
         }
       } else {
-        throw new Error(result.data?.registerNode.message || 'Failed to register node');
+        throw new Error(result.message || 'Failed to register node');
       }
 
     } catch (error) {

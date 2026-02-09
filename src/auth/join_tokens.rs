@@ -11,6 +11,7 @@ pub struct JoinToken {
     pub expires_at: Instant,
     pub used: bool,
     pub device_ip: Option<String>, // IP of device that used the token
+    pub device_node_id: Option<String>, // Persistent node ID of the joining device
     pub pin: Option<String>,       // PIN shown on device for verification
     pub session_token: Option<String>, // Session token after PIN verification
 }
@@ -42,6 +43,7 @@ impl JoinTokenStore {
                 expires_at: Instant::now() + std::time::Duration::from_secs(TOKEN_TTL_SECS),
                 used: false,
                 device_ip: None,
+                device_node_id: None,
                 pin: None,
                 session_token: None,
             },

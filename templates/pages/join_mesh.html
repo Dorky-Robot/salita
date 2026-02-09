@@ -186,6 +186,43 @@
 </style>
 
 <script>
+  // Generate UUID v7 (time-ordered UUID)
+  function generateUUIDv7() {
+    const timestamp = Date.now();
+    const randomBytes = new Uint8Array(10);
+    crypto.getRandomValues(randomBytes);
+
+    // Convert timestamp to hex (48 bits)
+    const timestampHex = timestamp.toString(16).padStart(12, '0');
+
+    // Build UUID: timestamp (48 bits) + version (4 bits) + random (12 bits) + variant (2 bits) + random (62 bits)
+    const uuid = [
+      timestampHex.slice(0, 8),
+      timestampHex.slice(8, 12),
+      '7' + Array.from(randomBytes.slice(0, 2)).map(b => b.toString(16).padStart(2, '0')).join('').slice(1),
+      ((randomBytes[2] & 0x3f) | 0x80).toString(16).padStart(2, '0') + randomBytes[3].toString(16).padStart(2, '0'),
+      Array.from(randomBytes.slice(4, 10)).map(b => b.toString(16).padStart(2, '0')).join('')
+    ].join('-');
+
+    return uuid;
+  }
+
+  // Get or create persistent node identity
+  function getNodeIdentity() {
+    let nodeId = localStorage.getItem('salita_node_id');
+    if (!nodeId) {
+      nodeId = generateUUIDv7();
+      localStorage.setItem('salita_node_id', nodeId);
+      console.log('[Mesh] Generated new node ID:', nodeId);
+    } else {
+      console.log('[Mesh] Loaded existing node ID:', nodeId);
+    }
+    return nodeId;
+  }
+
+  // Get this device's node ID
+  const nodeId = getNodeIdentity();
+
   // PIN is provided by the server when the join token was used
   const pin = '{{ pin }}';
 
@@ -210,12 +247,33 @@
     console.log(`[Mesh] ${message}`);
   }
 
-  function initJoinPage() {
+  async function initJoinPage() {
     debugLog('Page loaded, initializing...', 'info');
 
     // Display the PIN
     document.getElementById('pin-code').textContent = pin;
     debugLog(`PIN displayed: ${pin}`, 'info');
+
+    // Send our node ID to the server
+    debugLog(`Sending node ID to server: ${nodeId}`, 'info');
+    try {
+      const response = await fetch('/mesh/update-node-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: joinToken,
+          node_id: nodeId
+        })
+      });
+
+      if (response.ok) {
+        debugLog('Node ID sent successfully', 'success');
+      } else {
+        debugLog('Failed to send node ID', 'error');
+      }
+    } catch (error) {
+      debugLog(`Error sending node ID: ${error.message}`, 'error');
+    }
 
     // Start checking if we've been added to a mesh
     debugLog('Starting mesh status polling (every 3s)', 'info');

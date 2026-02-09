@@ -1,5 +1,5 @@
 use async_graphql::*;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
@@ -7,6 +7,7 @@ use rusqlite::params;
 use crate::graphql::types::{
     MeshNode, NodeOperationResult, RegisterNodeInput, UpdateNodeStatusInput,
 };
+use crate::mesh::tokens;
 
 // Helper to parse datetime from database string
 fn parse_datetime(s: String) -> DateTime<Utc> {
@@ -14,6 +15,20 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
         .ok()
         .and_then(|dt| Some(dt.with_timezone(&Utc)))
         .unwrap_or_else(|| Utc::now())
+}
+
+// Helper to issue a token to a peer node
+fn issue_peer_token(
+    conn: &rusqlite::Connection,
+    to_node_id: &str,
+) -> Result<(String, String, Vec<String>), Box<dyn std::error::Error>> {
+    let permissions = tokens::default_permissions();
+    let expires_at = Utc::now() + Duration::days(30);
+    let expires_at_str = expires_at.to_rfc3339();
+
+    let token = tokens::issue_token(conn, to_node_id, &permissions, &expires_at_str)?;
+
+    Ok((token, expires_at_str, permissions))
 }
 
 /// GraphQL Mutation root
@@ -45,6 +60,9 @@ impl MutationRoot {
                     existing_name
                 ),
                 node: None,
+                access_token: None,
+                expires_at: None,
+                permissions: None,
             });
         }
 
@@ -91,16 +109,36 @@ impl MutationRoot {
                     },
                 );
 
-                Ok(NodeOperationResult {
-                    success: true,
-                    message: format!("Node '{}' registered successfully", input.name),
-                    node: node.ok(),
-                })
+                // Issue access token for peer-to-peer authentication
+                match issue_peer_token(&conn, &node_id) {
+                    Ok((access_token, expires_at, permissions)) => {
+                        Ok(NodeOperationResult::with_token(
+                            true,
+                            format!("Node '{}' registered successfully", input.name),
+                            node.ok(),
+                            access_token,
+                            expires_at,
+                            permissions,
+                        ))
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to issue token: {}", e);
+                        // Still return success for registration, just without token
+                        Ok(NodeOperationResult::without_token(
+                            true,
+                            format!("Node '{}' registered (token issuance failed)", input.name),
+                            node.ok(),
+                        ))
+                    }
+                }
             }
             Err(e) => Ok(NodeOperationResult {
                 success: false,
                 message: format!("Failed to register node: {}", e),
                 node: None,
+                access_token: None,
+                expires_at: None,
+                permissions: None,
             }),
         }
     }
@@ -153,17 +191,23 @@ impl MutationRoot {
                     success: true,
                     message: format!("Node status updated to {:?}", input.status),
                     node: node.ok(),
+                    access_token: None,
+                    expires_at: None,
+                    permissions: None,
                 })
             }
-            Ok(_) => Ok(NodeOperationResult {
-                success: false,
-                message: "Node not found".to_string(),
-                node: None,
-            }),
+            Ok(_) => Ok(NodeOperationResult::without_token(
+                false,
+                "Node not found".to_string(),
+                None,
+            )),
             Err(e) => Ok(NodeOperationResult {
                 success: false,
                 message: format!("Failed to update node status: {}", e),
                 node: None,
+                access_token: None,
+                expires_at: None,
+                permissions: None,
             }),
         }
     }
@@ -176,20 +220,23 @@ impl MutationRoot {
         let result = conn.execute("DELETE FROM mesh_nodes WHERE id = ?1", params![node_id]);
 
         match result {
-            Ok(rows) if rows > 0 => Ok(NodeOperationResult {
-                success: true,
-                message: "Node removed successfully".to_string(),
-                node: None,
-            }),
-            Ok(_) => Ok(NodeOperationResult {
-                success: false,
-                message: "Node not found".to_string(),
-                node: None,
-            }),
+            Ok(rows) if rows > 0 => Ok(NodeOperationResult::without_token(
+                true,
+                "Node removed successfully".to_string(),
+                None,
+            )),
+            Ok(_) => Ok(NodeOperationResult::without_token(
+                false,
+                "Node not found".to_string(),
+                None,
+            )),
             Err(e) => Ok(NodeOperationResult {
                 success: false,
                 message: format!("Failed to remove node: {}", e),
                 node: None,
+                access_token: None,
+                expires_at: None,
+                permissions: None,
             }),
         }
     }
@@ -206,15 +253,18 @@ impl MutationRoot {
         );
 
         match result {
-            Ok(_) => Ok(NodeOperationResult {
-                success: true,
-                message: "Heartbeat recorded".to_string(),
-                node: None,
-            }),
+            Ok(_) => Ok(NodeOperationResult::without_token(
+                true,
+                "Heartbeat recorded".to_string(),
+                None,
+            )),
             Err(e) => Ok(NodeOperationResult {
                 success: false,
                 message: format!("Failed to record heartbeat: {}", e),
                 node: None,
+                access_token: None,
+                expires_at: None,
+                permissions: None,
             }),
         }
     }

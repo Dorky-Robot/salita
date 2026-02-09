@@ -514,25 +514,36 @@
     }
   })();
 
-  async function checkIfDeviceExists(deviceIp) {
+  async function checkIfDeviceExists(deviceNodeId, deviceIp) {
     try {
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          query: `{ nodes { hostname } }`
+          query: `{ nodes { id hostname } }`
         })
       });
 
       const result = await response.json();
       const nodes = result.data?.nodes || [];
 
-      // Check if any node has this hostname/IP (excluding current node)
-      // Also check with port suffix in case hostname includes port
-      return nodes.some(node =>
-        node.hostname === deviceIp || node.hostname === `${deviceIp}:6969`
-      );
+      // Check by node_id first (persistent identifier)
+      if (deviceNodeId) {
+        const foundById = nodes.some(node => node.id === deviceNodeId);
+        if (foundById) {
+          return true;
+        }
+      }
+
+      // Fallback: check by hostname/IP (for backwards compatibility)
+      if (deviceIp) {
+        return nodes.some(node =>
+          node.hostname === deviceIp || node.hostname === `${deviceIp}:6969`
+        );
+      }
+
+      return false;
     } catch (error) {
       console.error('Error checking if device exists:', error);
       return false;
@@ -558,9 +569,13 @@
         joinEventSource = null;
       }
 
+      // Store device info globally for later use
+      window.joiningDeviceIp = data.device_ip;
+      window.joiningDeviceNodeId = data.device_node_id;
+
       // Check if this device is already registered
-      if (data.device_ip) {
-        const isAlreadyRegistered = await checkIfDeviceExists(data.device_ip);
+      if (data.device_node_id) {
+        const isAlreadyRegistered = await checkIfDeviceExists(data.device_node_id, data.device_ip);
 
         if (isAlreadyRegistered) {
           // Skip to step 4 with "already connected" message
@@ -581,8 +596,10 @@
 
           return;
         }
+      }
 
-        // Populate device IP for new device
+      // Populate device IP for new device
+      if (data.device_ip) {
         document.getElementById('join-device-ip').value = data.device_ip;
       }
 
@@ -650,7 +667,18 @@
         throw new Error('Invalid PIN');
       }
 
-      // Register node in mesh
+      // Register node in mesh (include node_id if available)
+      const input = {
+        name: name,
+        hostname: ip,
+        port: 6969
+      };
+
+      // Include node_id if we received it from the joining device
+      if (window.joiningDeviceNodeId) {
+        input.node_id = window.joiningDeviceNodeId;
+      }
+
       const registerResponse = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -659,21 +687,68 @@
             registerNode(input: $input) {
               success
               message
+              accessToken
+              expiresAt
+              permissions
             }
           }`,
-          variables: {
-            input: {
-              name: name,
-              hostname: ip,
-              port: 6969
-            }
-          }
+          variables: { input }
         })
       });
 
       const result = await registerResponse.json();
 
       if (result.data?.registerNode.success) {
+        // Store access token if provided (for peer-to-peer auth)
+        const registerData = result.data.registerNode;
+        if (registerData.accessToken) {
+          // Store token FOR peer (phone can use this to call desktop)
+          const peerTokens = JSON.parse(localStorage.getItem('salita_peer_tokens') || '{}');
+          peerTokens[window.joiningDeviceNodeId || ip] = {
+            token: registerData.accessToken,
+            expires_at: registerData.expiresAt,
+            permissions: registerData.permissions
+          };
+          localStorage.setItem('salita_peer_tokens', JSON.stringify(peerTokens));
+          console.log('[Mesh] Stored peer token (desktop → phone)');
+        }
+
+        // Bidirectional token exchange: Request token FROM phone
+        try {
+          // Get our own node ID
+          const myNodeId = localStorage.getItem('salita_node_id') || 'unknown';
+
+          // Request token from phone's server
+          const tokenResponse = await fetch(`https://${ip}:6969/mesh/issue-peer-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              peer_node_id: myNodeId,
+              peer_name: 'Desktop'
+            })
+          });
+
+          if (tokenResponse.ok) {
+            const tokenData = await tokenResponse.json();
+
+            // Store token FROM phone (desktop can use this to call phone)
+            const peerTokens = JSON.parse(localStorage.getItem('salita_peer_tokens') || '{}');
+            peerTokens[window.joiningDeviceNodeId || ip] = {
+              ...peerTokens[window.joiningDeviceNodeId || ip],
+              reverse_token: tokenData.access_token,
+              reverse_expires_at: tokenData.expires_at,
+              reverse_permissions: tokenData.permissions
+            };
+            localStorage.setItem('salita_peer_tokens', JSON.stringify(peerTokens));
+            console.log('[Mesh] Stored reverse token (phone → desktop)');
+          } else {
+            console.warn('[Mesh] Failed to get reverse token from phone');
+          }
+        } catch (error) {
+          console.warn('[Mesh] Bidirectional token exchange failed:', error.message);
+          // Non-fatal - continue with one-way token
+        }
+
         // Success! Go to step 4
         goToStep(4);
         // Reload dashboard to show new device

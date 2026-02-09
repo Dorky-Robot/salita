@@ -1,0 +1,579 @@
+// Domain types - Pure, immutable, no side effects
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+
+/// New types for compile-time safety
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NodeId(pub String);
+
+impl NodeId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct JoinToken(pub String);
+
+impl JoinToken {
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+
+    pub fn generate() -> Self {
+        use rand::Rng;
+        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let mut rng = rand::thread_rng();
+        let token: String = (0..32)
+            .map(|_| {
+                let idx = rng.gen_range(0..CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect();
+        Self(token)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Pin(pub String);
+
+impl Pin {
+    pub fn new(pin: impl Into<String>) -> Self {
+        Self(pin.into())
+    }
+
+    pub fn generate() -> Self {
+        use rand::Rng;
+        let pin = rand::thread_rng().gen_range(100000..=999999);
+        Self(pin.to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionToken(pub String);
+
+impl SessionToken {
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+
+    pub fn generate() -> Self {
+        use rand::Rng;
+        let token: String = (0..32)
+            .map(|_| format!("{:02x}", rand::thread_rng().gen::<u8>()))
+            .collect();
+        Self(token)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IpAddress(pub String);
+
+impl IpAddress {
+    pub fn new(ip: impl Into<String>) -> Self {
+        Self(ip.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerToken(pub String);
+
+impl PeerToken {
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Pairing state machine - Pure, explicit state transitions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum PairingState {
+    /// Token created, waiting for device to scan QR
+    TokenCreated {
+        token: JoinToken,
+        created_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+    },
+
+    /// Device scanned QR, PIN generated
+    DeviceConnected {
+        token: JoinToken,
+        device_ip: IpAddress,
+        device_node_id: Option<NodeId>,
+        pin: Pin,
+        created_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+    },
+
+    /// Desktop verified PIN, session created
+    PinVerified {
+        token: JoinToken,
+        device_ip: IpAddress,
+        device_node_id: NodeId,
+        session_token: SessionToken,
+        created_at: DateTime<Utc>,
+    },
+
+    /// Device fully registered in mesh
+    DeviceRegistered {
+        token: JoinToken,
+        node_id: NodeId,
+        peer_token: PeerToken,
+        session_token: SessionToken,
+    },
+
+    /// Pairing failed or expired
+    Failed {
+        token: JoinToken,
+        reason: PairingFailure,
+        failed_at: DateTime<Utc>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PairingFailure {
+    TokenExpired,
+    InvalidPin,
+    DeviceAlreadyRegistered,
+    IpConflict { existing_device: String },
+    Other(String),
+}
+
+impl fmt::Display for PairingFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TokenExpired => write!(f, "Token expired"),
+            Self::InvalidPin => write!(f, "Invalid PIN"),
+            Self::DeviceAlreadyRegistered => write!(f, "Device already registered"),
+            Self::IpConflict { existing_device } => {
+                write!(f, "IP conflict with device: {}", existing_device)
+            }
+            Self::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PairingError {
+    TokenExpired,
+    InvalidPin,
+    InvalidTransition {
+        from: &'static str,
+        to: &'static str,
+    },
+    DeviceAlreadyRegistered,
+    IpConflict {
+        existing_device: String,
+    },
+}
+
+impl fmt::Display for PairingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TokenExpired => write!(f, "Token expired"),
+            Self::InvalidPin => write!(f, "Invalid PIN"),
+            Self::InvalidTransition { from, to } => {
+                write!(f, "Invalid transition from {} to {}", from, to)
+            }
+            Self::DeviceAlreadyRegistered => write!(f, "Device already registered"),
+            Self::IpConflict { existing_device } => {
+                write!(f, "IP conflict with device: {}", existing_device)
+            }
+        }
+    }
+}
+
+impl std::error::Error for PairingError {}
+
+/// Pure state transitions - no side effects!
+impl PairingState {
+    /// Get the token from any state
+    pub fn token(&self) -> &JoinToken {
+        match self {
+            Self::TokenCreated { token, .. } => token,
+            Self::DeviceConnected { token, .. } => token,
+            Self::PinVerified { token, .. } => token,
+            Self::DeviceRegistered { token, .. } => token,
+            Self::Failed { token, .. } => token,
+        }
+    }
+
+    /// Get state name for debugging/logging
+    pub fn state_name(&self) -> &'static str {
+        match self {
+            Self::TokenCreated { .. } => "TokenCreated",
+            Self::DeviceConnected { .. } => "DeviceConnected",
+            Self::PinVerified { .. } => "PinVerified",
+            Self::DeviceRegistered { .. } => "DeviceRegistered",
+            Self::Failed { .. } => "Failed",
+        }
+    }
+
+    /// Transition: Token → DeviceConnected
+    pub fn connect_device(
+        self,
+        device_ip: IpAddress,
+        now: DateTime<Utc>,
+    ) -> Result<(Self, Pin), PairingError> {
+        match self {
+            Self::TokenCreated {
+                token, expires_at, ..
+            } => {
+                if now > expires_at {
+                    return Err(PairingError::TokenExpired);
+                }
+
+                let pin = Pin::generate();
+
+                Ok((
+                    Self::DeviceConnected {
+                        token,
+                        device_ip,
+                        device_node_id: None,
+                        pin: pin.clone(),
+                        created_at: now,
+                        expires_at,
+                    },
+                    pin,
+                ))
+            }
+            other => Err(PairingError::InvalidTransition {
+                from: other.state_name(),
+                to: "DeviceConnected",
+            }),
+        }
+    }
+
+    /// Update device node ID (phone sends its persistent identity)
+    pub fn set_device_node_id(self, node_id: NodeId) -> Result<Self, PairingError> {
+        match self {
+            Self::DeviceConnected {
+                token,
+                device_ip,
+                pin,
+                created_at,
+                expires_at,
+                ..
+            } => Ok(Self::DeviceConnected {
+                token,
+                device_ip,
+                device_node_id: Some(node_id),
+                pin,
+                created_at,
+                expires_at,
+            }),
+            other => Err(PairingError::InvalidTransition {
+                from: other.state_name(),
+                to: "DeviceConnected(with node_id)",
+            }),
+        }
+    }
+
+    /// Transition: DeviceConnected → PinVerified
+    pub fn verify_pin(
+        self,
+        provided_pin: &Pin,
+        session_token: SessionToken,
+        now: DateTime<Utc>,
+    ) -> Result<Self, PairingError> {
+        match self {
+            Self::DeviceConnected {
+                token,
+                device_ip,
+                device_node_id,
+                pin,
+                expires_at,
+                ..
+            } => {
+                if now > expires_at {
+                    return Err(PairingError::TokenExpired);
+                }
+
+                if &pin != provided_pin {
+                    return Err(PairingError::InvalidPin);
+                }
+
+                // Require device_node_id to be set before PIN verification
+                let device_node_id = device_node_id.ok_or(PairingError::InvalidTransition {
+                    from: "DeviceConnected(no node_id)",
+                    to: "PinVerified",
+                })?;
+
+                Ok(Self::PinVerified {
+                    token,
+                    device_ip,
+                    device_node_id,
+                    session_token,
+                    created_at: now,
+                })
+            }
+            other => Err(PairingError::InvalidTransition {
+                from: other.state_name(),
+                to: "PinVerified",
+            }),
+        }
+    }
+
+    /// Transition: PinVerified → DeviceRegistered
+    pub fn register_device(self, peer_token: PeerToken) -> Result<Self, PairingError> {
+        match self {
+            Self::PinVerified {
+                token,
+                device_node_id,
+                session_token,
+                ..
+            } => Ok(Self::DeviceRegistered {
+                token,
+                node_id: device_node_id,
+                peer_token,
+                session_token,
+            }),
+            other => Err(PairingError::InvalidTransition {
+                from: other.state_name(),
+                to: "DeviceRegistered",
+            }),
+        }
+    }
+
+    /// Transition to Failed state
+    pub fn fail(self, reason: PairingFailure, now: DateTime<Utc>) -> Self {
+        Self::Failed {
+            token: self.token().clone(),
+            reason,
+            failed_at: now,
+        }
+    }
+
+    /// Check if state is expired
+    pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
+        match self {
+            Self::TokenCreated { expires_at, .. } => now > *expires_at,
+            Self::DeviceConnected { expires_at, .. } => now > *expires_at,
+            Self::PinVerified { .. } => false, // No expiry after PIN verified
+            Self::DeviceRegistered { .. } => false,
+            Self::Failed { .. } => true,
+        }
+    }
+
+    /// Check if pairing is complete
+    pub fn is_complete(&self) -> bool {
+        matches!(self, Self::DeviceRegistered { .. })
+    }
+
+    /// Check if pairing failed
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed { .. })
+    }
+}
+
+/// Pure coordinator - Business logic decisions
+pub struct PairingCoordinator;
+
+impl PairingCoordinator {
+    /// Calculate token expiration (pure)
+    pub fn calculate_expiry(created_at: DateTime<Utc>, ttl_seconds: u64) -> DateTime<Utc> {
+        created_at + Duration::seconds(ttl_seconds as i64)
+    }
+
+    /// Create initial pairing state
+    pub fn create_pairing(token: JoinToken, now: DateTime<Utc>, ttl_seconds: u64) -> PairingState {
+        let expires_at = Self::calculate_expiry(now, ttl_seconds);
+        PairingState::TokenCreated {
+            token,
+            created_at: now,
+            expires_at,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_token_generation() {
+        let token1 = JoinToken::generate();
+        let token2 = JoinToken::generate();
+
+        // Tokens should be unique
+        assert_ne!(token1, token2);
+
+        // Tokens should be 32 characters
+        assert_eq!(token1.as_str().len(), 32);
+        assert_eq!(token2.as_str().len(), 32);
+    }
+
+    #[test]
+    fn test_pin_generation() {
+        let pin1 = Pin::generate();
+        let pin2 = Pin::generate();
+
+        // PINs should be 6 digits
+        assert_eq!(pin1.as_str().len(), 6);
+        assert_eq!(pin2.as_str().len(), 6);
+
+        // PINs should be numeric
+        assert!(pin1.as_str().chars().all(|c| c.is_numeric()));
+        assert!(pin2.as_str().chars().all(|c| c.is_numeric()));
+    }
+
+    #[test]
+    fn test_valid_state_transitions() {
+        let token = JoinToken::new("test123");
+        let now = Utc::now();
+
+        // Start state
+        let state = PairingCoordinator::create_pairing(token.clone(), now, 300);
+        assert_eq!(state.state_name(), "TokenCreated");
+        assert!(!state.is_expired(now));
+
+        // Transition 1: Connect device
+        let (state, pin) = state
+            .connect_device(IpAddress::new("192.168.1.100"), now)
+            .unwrap();
+        assert_eq!(state.state_name(), "DeviceConnected");
+
+        // Transition 1b: Set device node ID
+        let state = state.set_device_node_id(NodeId::new("node123")).unwrap();
+
+        // Transition 2: Verify PIN
+        let state = state
+            .verify_pin(&pin, SessionToken::new("session456"), now)
+            .unwrap();
+        assert_eq!(state.state_name(), "PinVerified");
+
+        // Transition 3: Register device
+        let state = state.register_device(PeerToken::new("peer789")).unwrap();
+        assert_eq!(state.state_name(), "DeviceRegistered");
+        assert!(state.is_complete());
+        assert!(!state.is_failed());
+    }
+
+    #[test]
+    fn test_invalid_transition_rejected() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let state = PairingCoordinator::create_pairing(token, now, 300);
+
+        // Cannot verify PIN from TokenCreated state
+        let result = state.verify_pin(&Pin::new("123456"), SessionToken::new("session"), now);
+
+        assert!(matches!(
+            result,
+            Err(PairingError::InvalidTransition { .. })
+        ));
+    }
+
+    #[test]
+    fn test_expired_token_rejected() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let past = now - Duration::minutes(10);
+
+        let state = PairingCoordinator::create_pairing(token, past, 300); // 5 min TTL
+
+        // Should be expired
+        assert!(state.is_expired(now));
+
+        // Should reject connection
+        let result = state.connect_device(IpAddress::new("192.168.1.100"), now);
+        assert!(matches!(result, Err(PairingError::TokenExpired)));
+    }
+
+    #[test]
+    fn test_wrong_pin_rejected() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let state = PairingCoordinator::create_pairing(token, now, 300);
+
+        let (state, _correct_pin) = state
+            .connect_device(IpAddress::new("192.168.1.100"), now)
+            .unwrap();
+
+        let state = state.set_device_node_id(NodeId::new("node123")).unwrap();
+
+        // Try with wrong PIN
+        let wrong_pin = Pin::new("999999");
+        let result = state.verify_pin(&wrong_pin, SessionToken::new("session"), now);
+
+        assert!(matches!(result, Err(PairingError::InvalidPin)));
+    }
+
+    #[test]
+    fn test_pin_verification_requires_node_id() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let state = PairingCoordinator::create_pairing(token, now, 300);
+
+        let (state, pin) = state
+            .connect_device(IpAddress::new("192.168.1.100"), now)
+            .unwrap();
+
+        // Don't set node_id, try to verify PIN
+        let result = state.verify_pin(&pin, SessionToken::new("session"), now);
+
+        assert!(matches!(
+            result,
+            Err(PairingError::InvalidTransition { .. })
+        ));
+    }
+
+    #[test]
+    fn test_fail_transition() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let state = PairingCoordinator::create_pairing(token, now, 300);
+
+        let failed_state = state.fail(PairingFailure::InvalidPin, now);
+
+        assert_eq!(failed_state.state_name(), "Failed");
+        assert!(failed_state.is_failed());
+        assert!(!failed_state.is_complete());
+    }
+
+    #[test]
+    fn test_state_serialization() {
+        let token = JoinToken::new("test");
+        let now = Utc::now();
+        let state = PairingCoordinator::create_pairing(token, now, 300);
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&state).unwrap();
+
+        // Deserialize back
+        let deserialized: PairingState = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(state, deserialized);
+    }
+}

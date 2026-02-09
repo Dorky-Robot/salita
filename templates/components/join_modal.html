@@ -516,6 +516,7 @@
 
   async function checkIfDeviceExists(deviceIp) {
     try {
+      console.log('Checking if device exists:', deviceIp);
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -526,10 +527,22 @@
       });
 
       const result = await response.json();
+      console.log('GraphQL response:', result);
       const nodes = result.data?.nodes || [];
+      console.log('Nodes:', nodes);
 
       // Check if any node has this hostname/IP (excluding current node)
-      return nodes.some(node => node.hostname === deviceIp);
+      // Also check with port suffix in case hostname includes port
+      const exists = nodes.some(node => {
+        const match = node.hostname === deviceIp || node.hostname === `${deviceIp}:6969`;
+        if (match) {
+          console.log('Found matching node:', node.hostname);
+        }
+        return match;
+      });
+
+      console.log('Device already exists?', exists);
+      return exists;
     } catch (error) {
       console.error('Error checking if device exists:', error);
       return false;
@@ -547,7 +560,8 @@
 
     joinEventSource.addEventListener('token-used', async (event) => {
       const data = JSON.parse(event.data);
-      console.log('Device connected!', data);
+      console.log('Device connected! Event data:', data);
+      console.log('Device IP from event:', data.device_ip);
 
       // Close SSE connection - we got what we needed
       if (joinEventSource) {
@@ -558,8 +572,10 @@
       // Check if this device is already registered
       if (data.device_ip) {
         const isAlreadyRegistered = await checkIfDeviceExists(data.device_ip);
+        console.log('Is device already registered?', isAlreadyRegistered);
 
         if (isAlreadyRegistered) {
+          console.log('Device is already registered - skipping to step 4');
           // Skip to step 4 with "already connected" message
           goToStep(4);
 
@@ -579,6 +595,7 @@
           return;
         }
 
+        console.log('Device is new - populating form and advancing to step 3');
         // Populate device IP for new device
         document.getElementById('join-device-ip').value = data.device_ip;
       }

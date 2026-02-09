@@ -28,6 +28,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "005_mesh_network",
         include_str!("../../migrations/005_mesh_network.sql"),
     ),
+    (
+        "006_token_based_mesh",
+        include_str!("../../migrations/006_token_based_mesh.sql"),
+    ),
+    (
+        "007_cleanup_duplicate_nodes",
+        include_str!("../../migrations/007_cleanup_duplicate_nodes.sql"),
+    ),
 ];
 
 pub fn create_pool(db_path: &Path) -> anyhow::Result<DbPool> {
@@ -73,7 +81,14 @@ pub fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
 
         if !already_applied {
             tracing::info!("Applying migration: {}", name);
-            conn.execute_batch(sql)?;
+
+            // Special handling for migration 006
+            if *name == "006_token_based_mesh" {
+                run_migration_006(&conn, sql)?;
+            } else {
+                conn.execute_batch(sql)?;
+            }
+
             conn.execute(
                 "INSERT INTO schema_version (name) VALUES (?1)",
                 params![name],
@@ -88,6 +103,29 @@ pub fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
     )?;
 
     tracing::info!("Database migrations complete");
+    Ok(())
+}
+
+/// Special handler for migration 006 - adds metadata column if it doesn't exist
+fn run_migration_006(conn: &rusqlite::Connection, sql: &str) -> anyhow::Result<()> {
+    // Check if metadata column exists in mesh_nodes
+    let has_metadata: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('mesh_nodes') WHERE name = 'metadata'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    // Run the migration SQL
+    conn.execute_batch(sql)?;
+
+    // Add metadata column if it doesn't exist
+    if !has_metadata {
+        conn.execute_batch("ALTER TABLE mesh_nodes ADD COLUMN metadata TEXT")?;
+        tracing::info!("Added metadata column to mesh_nodes");
+    }
+
     Ok(())
 }
 
@@ -128,11 +166,11 @@ mod tests {
 
         let conn = pool.get().unwrap();
 
-        // Verify schema_version tracks all 3 migrations
+        // Verify schema_version tracks all migrations
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 4);
+        assert_eq!(count, 7);
 
         // Verify key tables exist
         let tables: Vec<String> = {
@@ -162,7 +200,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 4);
+        assert_eq!(count, 7);
     }
 
     #[test]

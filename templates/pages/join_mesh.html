@@ -150,23 +150,85 @@
   #qr-code {
     display: inline-block;
   }
+
+  .debug-log {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.9);
+    color: #0f0;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    border-top: 2px solid #0f0;
+    z-index: 9999;
+  }
+
+  .debug-log-entry {
+    margin: 2px 0;
+    word-break: break-all;
+  }
+
+  .debug-log-entry.error {
+    color: #f00;
+  }
+
+  .debug-log-entry.success {
+    color: #0f0;
+  }
+
+  .debug-log-entry.info {
+    color: #0ff;
+  }
 </style>
 
 <script>
   // PIN is provided by the server when the join token was used
   const pin = '{{ pin }}';
+
+  // Get join token from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const joinToken = urlParams.get('token');
+
   let checkInterval;
 
+  function debugLog(message, type = 'info') {
+    const log = document.getElementById('debug-log');
+    if (!log) return;
+
+    const entry = document.createElement('div');
+    entry.className = `debug-log-entry ${type}`;
+    const time = new Date().toLocaleTimeString();
+    entry.textContent = `[${time}] ${message}`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+
+    // Also log to console
+    console.log(`[Mesh] ${message}`);
+  }
+
   function initJoinPage() {
+    debugLog('Page loaded, initializing...', 'info');
+
     // Display the PIN
     document.getElementById('pin-code').textContent = pin;
+    debugLog(`PIN displayed: ${pin}`, 'info');
 
     // Start checking if we've been added to a mesh
+    debugLog('Starting mesh status polling (every 3s)', 'info');
     checkInterval = setInterval(checkMeshStatus, 3000);
+
+    // Run first check immediately
+    checkMeshStatus();
   }
 
   async function checkMeshStatus() {
     try {
+      debugLog('→ Polling /graphql for mesh status...', 'info');
+
       // Check if this node is now registered in a mesh
       const response = await fetch('/graphql', {
         method: 'POST',
@@ -176,26 +238,60 @@
         })
       });
 
+      debugLog(`← Response: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+
       const result = await response.json();
+      const nodeCount = result.data?.nodes?.length || 0;
+      debugLog(`Nodes in mesh: ${nodeCount}`, 'info');
+
+      if (result.errors) {
+        debugLog(`GraphQL errors: ${JSON.stringify(result.errors)}`, 'error');
+      }
+
       if (result.data?.nodes && result.data.nodes.length > 1) {
         // We're in a mesh with other nodes!
+        debugLog('✓ Joined mesh with multiple nodes! Redirecting...', 'success');
         clearInterval(checkInterval);
         showSuccess();
+      } else {
+        debugLog('Still waiting for other nodes...', 'info');
       }
     } catch (error) {
-      // Ignore errors, keep checking
+      debugLog(`ERROR: ${error.message}`, 'error');
+      debugLog(`Stack: ${error.stack}`, 'error');
     }
   }
 
-  function showSuccess() {
+  async function showSuccess() {
     const statusEl = document.querySelector('.status-indicator');
     statusEl.innerHTML = '<span style="color: #22c55e; font-size: 1.5rem;">✓</span> Successfully joined mesh!';
     statusEl.style.background = '#dcfce7';
     statusEl.style.color = '#166534';
 
+    debugLog('Claiming session cookie...', 'info');
+
+    try {
+      // Claim the session cookie
+      const response = await fetch(`/mesh/claim-session?token=${joinToken}`, {
+        method: 'GET',
+        credentials: 'include'  // Important: include cookies
+      });
+
+      debugLog(`← Claim session: ${response.status}`, response.ok ? 'success' : 'error');
+
+      if (!response.ok) {
+        debugLog('Failed to claim session, trying dashboard anyway...', 'error');
+      } else {
+        debugLog('Session claimed! Redirecting...', 'success');
+      }
+    } catch (error) {
+      debugLog(`ERROR claiming session: ${error.message}`, 'error');
+    }
+
     setTimeout(() => {
+      debugLog('Redirecting to dashboard...', 'success');
       window.location.href = '/dashboard';
-    }, 2000);
+    }, 1000);
   }
 
   document.addEventListener('DOMContentLoaded', initJoinPage);
@@ -257,4 +353,6 @@
     </div>
   </div>
 </div>
+
+<div id="debug-log" class="debug-log"></div>
 {% endblock %}

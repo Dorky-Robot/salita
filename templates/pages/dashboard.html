@@ -214,6 +214,7 @@
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           query: `query {
             currentNode { id }
@@ -251,8 +252,7 @@
         <div class="empty-state">
           <div class="empty-state__icon">🌐</div>
           <h2 class="empty-state__title">No Mesh Network Yet</h2>
-          <p class="empty-state__text">Add your first device to start building your personal mesh network.</p>
-          <button class="btn btn--primary" onclick="openAddDevice()">Add Your First Device</button>
+          <p class="empty-state__text">Click the connect icon (🔗) in the top right to add your first device and start building your personal mesh network.</p>
         </div>
       `;
       return;
@@ -328,13 +328,6 @@
     return `${Math.floor(seconds / 86400)}d ago`;
   }
 
-  function openAddDevice() {
-    htmx.ajax('GET', '/dashboard/add-device-modal', {
-      target: '#modal-container',
-      swap: 'innerHTML'
-    });
-  }
-
   async function configureNode(nodeId) {
     // TODO: Open configuration modal
     console.log('Configure node:', nodeId);
@@ -347,6 +340,7 @@
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           query: `mutation RemoveNode($nodeId: String!) {
             removeNode(nodeId: $nodeId) {
@@ -390,14 +384,6 @@
           <span class="stat__value"><span id="stat-online">0</span>/<span id="stat-total">0</span> online</span>
         </div>
       </div>
-    </div>
-    <div class="dashboard__actions">
-      <button class="btn btn--secondary" onclick="loadDashboard()">
-        <i class="ph ph-arrow-clockwise"></i> Refresh
-      </button>
-      <button class="btn btn--primary" onclick="openAddDevice()">
-        <i class="ph ph-plus"></i> Add Device
-      </button>
     </div>
   </div>
 

@@ -12,22 +12,58 @@
       <div class="wizard-steps">
         <div class="wizard-step wizard-step--active" data-step="1">
           <div class="wizard-step__number">1</div>
-          <div class="wizard-step__label">Share Link</div>
+          <div class="wizard-step__label">Trust Cert</div>
         </div>
         <div class="wizard-step-connector"></div>
         <div class="wizard-step" data-step="2">
           <div class="wizard-step__number">2</div>
-          <div class="wizard-step__label">Device Connects</div>
+          <div class="wizard-step__label">Share Link</div>
         </div>
         <div class="wizard-step-connector"></div>
         <div class="wizard-step" data-step="3">
           <div class="wizard-step__number">3</div>
+          <div class="wizard-step__label">Device Connects</div>
+        </div>
+        <div class="wizard-step-connector"></div>
+        <div class="wizard-step" data-step="4">
+          <div class="wizard-step__number">4</div>
           <div class="wizard-step__label">Complete</div>
         </div>
       </div>
 
-      <!-- Step 1: Share Link -->
+      <!-- Step 1: Trust Certificate -->
       <div class="wizard-panel wizard-panel--active" data-panel="1">
+        <div class="wizard-panel__content">
+          <div class="join-section">
+            <h3 class="join-section__title">📱 First: Trust Certificate</h3>
+            <p style="color: #666; margin-bottom: 1.5rem;">
+              Scan this QR code on your mobile device to install the HTTPS certificate.
+              This is required before joining the mesh.
+            </p>
+
+            <div class="join-qr">
+              <canvas id="cert-qr-canvas"></canvas>
+            </div>
+
+            <div class="join-url-box" style="margin-top: 1.5rem;">
+              <label class="join-url-label">Or visit manually:</label>
+              <div class="join-url">
+                <code id="cert-url-code">http://{{ lan_ip }}:6968/connect/trust</code>
+                <button onclick="copyCertUrl()" class="copy-btn" title="Copy URL">
+                  <i class="ph ph-copy"></i>
+                </button>
+              </div>
+            </div>
+
+            <button class="btn btn--primary" style="width: 100%; margin-top: 1.5rem;" onclick="goToStep(2)">
+              Certificate Installed → Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Share Link -->
+      <div class="wizard-panel" data-panel="2">
         <div class="wizard-panel__content">
           <!-- QR Method -->
           <div class="join-section">
@@ -63,8 +99,8 @@
         </div>
       </div>
 
-      <!-- Step 2: Enter PIN -->
-      <div class="wizard-panel" data-panel="2">
+      <!-- Step 3: Enter PIN -->
+      <div class="wizard-panel" data-panel="3">
         <div class="wizard-panel__content">
           <div class="wizard-success-icon">✓</div>
           <h3 class="wizard-panel__title">Device Connected!</h3>
@@ -123,8 +159,8 @@
         </div>
       </div>
 
-      <!-- Step 3: Complete -->
-      <div class="wizard-panel" data-panel="3">
+      <!-- Step 4: Complete -->
+      <div class="wizard-panel" data-panel="4">
         <div class="wizard-panel__content">
           <div class="wizard-success-icon" style="color: #22c55e;">✓</div>
           <h3 class="wizard-panel__title">Successfully Added!</h3>
@@ -428,9 +464,25 @@
   // Initialize wizard
   (function() {
     const joinUrl = '{{ join_url }}';
-    const canvas = document.getElementById('join-qr-canvas');
+    const certUrl = document.getElementById('cert-url-code').textContent;
 
-    // Generate QR code
+    // Generate certificate trust QR code (Step 1)
+    const certCanvas = document.getElementById('cert-qr-canvas');
+    if (certCanvas && typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(certCanvas, certUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      }, function(error) {
+        if (error) console.error('Cert QR code generation failed:', error);
+      });
+    }
+
+    // Generate join QR code (Step 2)
+    const canvas = document.getElementById('join-qr-canvas');
     if (canvas && typeof QRCode !== 'undefined') {
       QRCode.toCanvas(canvas, joinUrl, {
         width: 200,
@@ -440,7 +492,7 @@
           light: '#ffffff'
         }
       }, function(error) {
-        if (error) console.error('QR code generation failed:', error);
+        if (error) console.error('Join QR code generation failed:', error);
       });
     }
 
@@ -462,6 +514,31 @@
     }
   })();
 
+  async function checkIfDeviceExists(deviceIp) {
+    try {
+      const response = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          query: `{ nodes { hostname } }`
+        })
+      });
+
+      const result = await response.json();
+      const nodes = result.data?.nodes || [];
+
+      // Check if any node has this hostname/IP (excluding current node)
+      // Also check with port suffix in case hostname includes port
+      return nodes.some(node =>
+        node.hostname === deviceIp || node.hostname === `${deviceIp}:6969`
+      );
+    } catch (error) {
+      console.error('Error checking if device exists:', error);
+      return false;
+    }
+  }
+
   function connectToTokenStream(token) {
     // Close existing connection if any
     if (joinEventSource) {
@@ -471,7 +548,7 @@
     // Open SSE connection
     joinEventSource = new EventSource(`/mesh/join-events?token=${token}`);
 
-    joinEventSource.addEventListener('token-used', (event) => {
+    joinEventSource.addEventListener('token-used', async (event) => {
       const data = JSON.parse(event.data);
       console.log('Device connected!', data);
 
@@ -481,13 +558,36 @@
         joinEventSource = null;
       }
 
-      // Auto-advance to step 2
-      goToStep(2);
-
-      // Populate device IP
+      // Check if this device is already registered
       if (data.device_ip) {
+        const isAlreadyRegistered = await checkIfDeviceExists(data.device_ip);
+
+        if (isAlreadyRegistered) {
+          // Skip to step 4 with "already connected" message
+          goToStep(4);
+
+          // Update the success message
+          const successPanel = document.querySelector('[data-panel="4"] .wizard-panel__content');
+          successPanel.innerHTML = `
+            <div class="wizard-success-icon" style="color: #3b82f6;">ℹ️</div>
+            <h3 class="wizard-panel__title">Already Connected</h3>
+            <p class="wizard-panel__text">
+              This device is already part of your mesh network.
+            </p>
+            <button class="btn btn--primary" style="width: 100%;" onclick="closeJoinModal()">
+              Done
+            </button>
+          `;
+
+          return;
+        }
+
+        // Populate device IP for new device
         document.getElementById('join-device-ip').value = data.device_ip;
       }
+
+      // Auto-advance to step 3 (device connects) for new devices
+      goToStep(3);
     });
 
     joinEventSource.addEventListener('error', (error) => {
@@ -574,8 +674,12 @@
       const result = await registerResponse.json();
 
       if (result.data?.registerNode.success) {
-        // Success! Go to step 3
-        goToStep(3);
+        // Success! Go to step 4
+        goToStep(4);
+        // Reload dashboard to show new device
+        if (typeof loadDashboard === 'function') {
+          loadDashboard();
+        }
       } else {
         throw new Error(result.data?.registerNode.message || 'Failed to register node');
       }
@@ -586,6 +690,20 @@
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="ph ph-plus"></i> Add to Mesh';
     }
+  }
+
+  function copyCertUrl() {
+    const certUrl = document.getElementById('cert-url-code').textContent;
+    navigator.clipboard.writeText(certUrl).then(() => {
+      const btn = event.target.closest('.copy-btn');
+      const icon = btn.querySelector('i');
+      icon.classList.remove('ph-copy');
+      icon.classList.add('ph-check');
+      setTimeout(() => {
+        icon.classList.remove('ph-check');
+        icon.classList.add('ph-copy');
+      }, 2000);
+    });
   }
 
   function copyJoinUrl() {

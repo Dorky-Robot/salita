@@ -4,13 +4,13 @@ use axum::response::{Html, IntoResponse, Json};
 use axum::routing::{get, post};
 use axum::Router;
 
-use crate::extractors::CurrentUser;
+use crate::extractors::MaybeUser;
 use crate::state::AppState;
 
 /// GraphQL endpoint handler
 async fn graphql_handler(
     State(state): State<AppState>,
-    _user: CurrentUser, // Require authentication
+    _user: MaybeUser, // Allow unauthenticated queries for mesh polling
     Json(req): Json<async_graphql::Request>,
 ) -> Json<async_graphql::Response> {
     let mut request = req;

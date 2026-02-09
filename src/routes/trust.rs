@@ -42,11 +42,12 @@ async fn download_mobileconfig(State(state): State<AppState>) -> AppResult<Respo
     let paths = crate::tls::TlsPaths::new(&state.data_dir);
 
     let mobileconfig =
-        crate::tls::generate_mobileconfig(&paths.ca_cert, &state.config.instance_name)
-            .map_err(|e| {
-        tracing::error!("Failed to generate mobileconfig: {}", e);
-        AppError::Internal("Failed to generate mobileconfig".into())
-    })?;
+        crate::tls::generate_mobileconfig(&paths.ca_cert, &state.config.instance_name).map_err(
+            |e| {
+                tracing::error!("Failed to generate mobileconfig: {}", e);
+                AppError::Internal("Failed to generate mobileconfig".into())
+            },
+        )?;
 
     Ok((
         [

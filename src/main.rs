@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod extractors;
 mod graphql;
+mod mesh;
 mod routes;
 mod state;
 mod tls;
@@ -23,8 +24,6 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 use crate::auth::join_tokens::JoinTokenStore;
-use crate::auth::linking::LinkingCodeStore;
-use crate::auth::pairing::PairingStore;
 use crate::auth::webauthn::CeremonyStore;
 use crate::config::{Cli, Config};
 use crate::state::AppState;
@@ -53,6 +52,36 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::create_pool(config.db_path())?;
     db::run_migrations(&pool)?;
 
+    // Initialize node identity
+    let node_identity = mesh::node_identity::NodeIdentity::load_or_create(&data_dir)?;
+    tracing::info!(
+        "Node ID: {}, Name: {}",
+        node_identity.id,
+        node_identity.name
+    );
+
+    // Ensure current_node table is populated
+    {
+        let conn = pool.get()?;
+        // First, ensure this node exists in mesh_nodes
+        conn.execute(
+            "INSERT OR REPLACE INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, metadata, is_current)
+             VALUES (?1, ?2, ?3, ?4, 'online', '[]', datetime('now'), NULL, 1)",
+            params![
+                &node_identity.id,
+                &node_identity.name,
+                "localhost",
+                config.server.port
+            ],
+        )?;
+
+        // Then populate current_node
+        conn.execute(
+            "INSERT OR REPLACE INTO current_node (node_id) VALUES (?1)",
+            params![&node_identity.id],
+        )?;
+    }
+
     // Build WebAuthn instance
     let site_url = config.site_url();
     tracing::info!("Site URL (WebAuthn origin): {}", site_url);
@@ -69,8 +98,6 @@ async fn main() -> anyhow::Result<()> {
         data_dir: data_dir.clone(),
         webauthn: Arc::new(webauthn),
         ceremonies: Arc::new(Mutex::new(CeremonyStore::new())),
-        pairings: Arc::new(Mutex::new(PairingStore::new())),
-        linking_codes: Arc::new(Mutex::new(LinkingCodeStore::new())),
         join_tokens: Arc::new(Mutex::new(JoinTokenStore::new())),
         graphql_schema,
     };
@@ -82,7 +109,6 @@ async fn main() -> anyhow::Result<()> {
         .merge(routes::auth::router())
         .merge(routes::dashboard::router())
         .merge(routes::stream::router())
-        .merge(routes::connect::router())
         .merge(routes::settings::router())
         .merge(routes::graphql::router());
 
@@ -91,7 +117,9 @@ async fn main() -> anyhow::Result<()> {
         app = app.route("/test/seed", get(test_seed));
     }
 
-    let app = app.layer(TraceLayer::new_for_http()).with_state(state.clone());
+    let app = app
+        .layer(TraceLayer::new_for_http())
+        .with_state(state.clone());
 
     if config.tls_enabled() {
         // TLS mode: HTTPS on main port + HTTP on onboarding port
@@ -103,22 +131,18 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("HTTPS server listening on https://{}", https_addr);
 
         // Build HTTP-only router for trust/onboarding (no redirects)
-        // Only serves the trust page at /connect/trust
+        // ONLY serves the certificate trust page - everything else must be HTTPS
         let http_app = routes::trust::router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
         let http_addr: SocketAddr =
             format!("{}:{}", config.server.host, config.tls.http_port).parse()?;
-        tracing::info!(
-            "HTTP onboarding server listening on http://{}",
-            http_addr
-        );
+        tracing::info!("HTTP onboarding server listening on http://{}", http_addr);
 
         // Run both servers concurrently
-        let https_server = axum_server::bind_rustls(https_addr, rustls_config).serve(
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        );
+        let https_server = axum_server::bind_rustls(https_addr, rustls_config)
+            .serve(app.into_make_service_with_connect_info::<SocketAddr>());
 
         let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
         let http_server = axum::serve(
@@ -127,8 +151,14 @@ async fn main() -> anyhow::Result<()> {
         );
 
         println!("\n📋 Setup Instructions:");
-        println!("   1. Trust certificate: http://localhost:{}/connect/trust", config.tls.http_port);
-        println!("   2. Access app:        https://localhost:{}\n", config.server.port);
+        println!(
+            "   1. Trust certificate: http://localhost:{}/connect/trust",
+            config.tls.http_port
+        );
+        println!(
+            "   2. Access app:        https://localhost:{}\n",
+            config.server.port
+        );
 
         tokio::select! {
             result = https_server => { result?; }
@@ -136,8 +166,7 @@ async fn main() -> anyhow::Result<()> {
         }
     } else {
         // Plain HTTP mode (backward compatible)
-        let addr: SocketAddr =
-            format!("{}:{}", config.server.host, config.server.port).parse()?;
+        let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
         tracing::info!("Listening on http://{}", addr);
 
         let listener = tokio::net::TcpListener::bind(addr).await?;

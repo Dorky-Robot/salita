@@ -33,10 +33,7 @@ impl<T: Template> IntoResponse for Html<T> {
     }
 }
 
-pub async fn index(
-    State(state): State<AppState>,
-    maybe_user: MaybeUser,
-) -> AppResult<Response> {
+pub async fn index(State(state): State<AppState>, maybe_user: MaybeUser) -> AppResult<Response> {
     // If user is authenticated, redirect to dashboard
     if maybe_user.0.is_some() {
         return Ok(Redirect::to("/dashboard").into_response());

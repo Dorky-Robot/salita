@@ -63,8 +63,8 @@ async fn main() -> anyhow::Result<()> {
         let conn = pool.get()?;
         // First, ensure this node exists in mesh_nodes
         conn.execute(
-            "INSERT OR REPLACE INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, metadata)
-             VALUES (?1, ?2, ?3, ?4, 'online', '[]', datetime('now'), NULL)",
+            "INSERT OR REPLACE INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, metadata, is_current)
+             VALUES (?1, ?2, ?3, ?4, 'online', '[]', datetime('now'), NULL, 1)",
             params![
                 &node_identity.id,
                 &node_identity.name,

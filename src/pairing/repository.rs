@@ -35,9 +35,11 @@ pub trait PairingRepository: Send + Sync {
     async fn save(&self, state: &PairingState) -> Result<(), RepositoryError>;
 
     /// Delete pairing state
+    #[allow(dead_code)]
     async fn delete(&self, token: &JoinToken) -> Result<bool, RepositoryError>;
 
     /// Purge expired states (returns count deleted)
+    #[allow(dead_code)]
     async fn purge_expired(&self, before: DateTime<Utc>) -> Result<u64, RepositoryError>;
 
     /// Log pairing event for audit trail

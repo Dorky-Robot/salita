@@ -400,6 +400,7 @@ impl PairingState {
     }
 
     /// Transition to Failed state
+    #[allow(dead_code)]
     pub fn fail(self, reason: PairingFailure, now: DateTime<Utc>) -> Self {
         Self::Failed {
             token: self.token().clone(),
@@ -420,6 +421,7 @@ impl PairingState {
     }
 
     /// Check if pairing is complete
+    #[allow(dead_code)]
     pub fn is_complete(&self) -> bool {
         matches!(self, Self::DeviceRegistered { .. })
     }

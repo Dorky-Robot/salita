@@ -386,7 +386,7 @@ mod tests {
         let start_req = StartPairingRequest {
             created_by_node_id: "test-node".to_string(),
         };
-        let start_response = start_pairing(State(state.clone()), Json(start_req))
+        let _start_response = start_pairing(State(state.clone()), Json(start_req))
             .await
             .unwrap();
 

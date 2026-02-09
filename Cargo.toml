@@ -64,3 +64,5 @@ hostname = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
+reqwest = { version = "0.11", features = ["json"] }
+tokio-test = "0.4"

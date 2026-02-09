@@ -33,6 +33,7 @@ struct AddDeviceModalTemplate;
 #[template(path = "components/join_modal.html")]
 struct JoinModalTemplate {
     join_url: String,
+    lan_ip: String,
 }
 
 #[derive(Template)]
@@ -68,12 +69,16 @@ async fn join_modal(State(state): State<AppState>) -> AppResult<impl IntoRespons
         .unwrap_or_else(|_| "192.168.1.x".to_string());
 
     // Include token in URL for security
+    // Use HTTP onboarding server so devices don't need trusted cert yet
     let join_url = format!(
-        "https://{}:{}/join?token={}",
-        lan_ip, state.config.server.port, token
+        "http://{}:{}/join?token={}",
+        lan_ip, state.config.tls.http_port, token
     );
 
-    let template = JoinModalTemplate { join_url };
+    let template = JoinModalTemplate {
+        join_url,
+        lan_ip,
+    };
     Ok(Html(template))
 }
 

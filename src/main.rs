@@ -130,8 +130,10 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("HTTPS server listening on https://{}", https_addr);
 
         // Build HTTP-only router for trust/onboarding (no redirects)
-        // Only serves the trust page at /connect/trust
+        // Serves trust page, join page, and GraphQL for devices without trusted certs
         let http_app = routes::trust::router()
+            .merge(routes::dashboard::router())
+            .merge(routes::graphql::router())
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 

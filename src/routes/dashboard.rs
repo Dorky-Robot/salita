@@ -68,10 +68,15 @@ async fn join_modal(State(state): State<AppState>) -> AppResult<impl IntoRespons
         .unwrap_or_else(|_| "192.168.1.x".to_string());
 
     // Include token in URL for security
-    // Use HTTPS - mobile must trust cert first via Step 1
+    // Use HTTP or HTTPS based on TLS configuration
+    let protocol = if state.config.tls_enabled() {
+        "https"
+    } else {
+        "http"
+    };
     let join_url = format!(
-        "https://{}:{}/join?token={}",
-        lan_ip, state.config.server.port, token
+        "{}://{}:{}/join?token={}",
+        protocol, lan_ip, state.config.server.port, token
     );
 
     let template = JoinModalTemplate { join_url, lan_ip };

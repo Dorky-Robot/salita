@@ -6,120 +6,198 @@
 <style>
   .join-container {
     max-width: 600px;
-    margin: 4rem auto;
-    text-align: center;
-  }
-
-  .join-header {
-    margin-bottom: 3rem;
-  }
-
-  .join-header__icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-  }
-
-  .join-header__title {
-    font-size: 2rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-  }
-
-  .join-header__subtitle {
-    color: #666;
-    font-size: 1.1rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
   }
 
   .join-card {
     background: white;
-    border: 2px solid #3b82f6;
     border-radius: 16px;
-    padding: 3rem 2rem;
-    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1);
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   }
 
-  .device-info {
-    background: #f9fafb;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .device-info__label {
-    font-size: 0.9rem;
-    color: #666;
-    margin-bottom: 0.5rem;
-  }
-
-  .device-info__value {
-    font-family: 'SF Mono', Monaco, monospace;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #000;
-  }
-
-  .pin-display {
-    margin: 2rem 0;
-  }
-
-  .pin-display__label {
-    font-size: 1.1rem;
-    font-weight: 500;
-    margin-bottom: 1rem;
-    color: #374151;
-  }
-
-  .pin-display__code {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    font-size: 3rem;
-    font-weight: 700;
-    font-family: 'SF Mono', Monaco, monospace;
-    letter-spacing: 1rem;
-    padding: 1.5rem;
-    border-radius: 12px;
-    margin: 0 auto;
-    display: inline-block;
-    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
-  }
-
-  .instructions {
+  .join-header {
     text-align: left;
-    background: #fffbeb;
-    border: 2px solid #fbbf24;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-top: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
   }
 
-  .instructions__title {
+  .join-header__title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  /* Progress Stepper */
+  .stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3rem;
+    padding: 0 1rem;
+  }
+
+  .stepper__step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+  }
+
+  .stepper__circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 600;
-    margin-bottom: 1rem;
+    font-size: 1.125rem;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .stepper__step.active .stepper__circle {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .stepper__step.completed .stepper__circle {
+    background: #22c55e;
+    color: white;
+  }
+
+  .stepper__label {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    text-align: center;
+  }
+
+  .stepper__step.active .stepper__label {
+    color: #3b82f6;
+    font-weight: 500;
+  }
+
+  .stepper__step.completed .stepper__label {
+    color: #6b7280;
+  }
+
+  .stepper__line {
+    position: absolute;
+    top: 24px;
+    left: calc(50% + 24px);
+    right: calc(-50% + 24px);
+    height: 2px;
+    background: #e5e7eb;
+    z-index: 1;
+  }
+
+  .stepper__step.completed .stepper__line {
+    background: #22c55e;
+  }
+
+  .stepper__step:last-child .stepper__line {
+    display: none;
+  }
+
+  /* Content Sections */
+  .content-section {
+    margin-bottom: 2.5rem;
+  }
+
+  .section-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 1rem;
   }
 
-  .instructions ol {
+  .section-header i {
+    font-size: 1.25rem;
+  }
+
+  .section-description {
+    color: #6b7280;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .pin-container {
+    background: #f9fafb;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .pin-display__code {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 1rem;
+    color: #3b82f6;
+    margin: 1rem 0;
+  }
+
+  .instructions-list {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+  }
+
+  .instructions-list ol {
     margin: 0;
-    padding-left: 1.5rem;
+    padding-left: 1.25rem;
+    color: #4b5563;
   }
 
-  .instructions li {
-    margin-bottom: 0.75rem;
+  .instructions-list li {
+    margin-bottom: 0.5rem;
     line-height: 1.6;
   }
 
-  .status-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #dbeafe;
-    color: #1e40af;
+  .instructions-list li:last-child {
+    margin-bottom: 0;
+  }
+
+  .status-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
     border-radius: 8px;
-    font-size: 0.9rem;
+    padding: 1rem;
     margin-top: 2rem;
+    text-align: center;
+  }
+
+  .status-box.success {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+  }
+
+  .status-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #0369a1;
+    font-weight: 500;
+  }
+
+  .status-box.success .status-content {
+    color: #166534;
   }
 
   .spinner {
@@ -135,20 +213,35 @@
     to { transform: rotate(360deg); }
   }
 
-  .qr-section {
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 1px solid #e5e7eb;
-  }
+  @media (max-width: 640px) {
+    .stepper {
+      padding: 0;
+    }
 
-  .qr-section__title {
-    font-size: 0.9rem;
-    color: #666;
-    margin-bottom: 1rem;
-  }
+    .stepper__circle {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
 
-  #qr-code {
-    display: inline-block;
+    .stepper__label {
+      font-size: 0.75rem;
+    }
+
+    .stepper__line {
+      top: 20px;
+      left: calc(50% + 20px);
+      right: calc(-50% + 20px);
+    }
+
+    .pin-display__code {
+      font-size: 2.5rem;
+      letter-spacing: 0.5rem;
+    }
+
+    .join-card {
+      padding: 1.5rem;
+    }
   }
 
   .debug-log {
@@ -320,11 +413,38 @@
     }
   }
 
+  function updateStepper(currentStep) {
+    const steps = {
+      'pin': 2,
+      'pairing': 3,
+      'complete': 4
+    };
+
+    const stepNum = steps[currentStep];
+    if (!stepNum) return;
+
+    // Update all steps up to current
+    for (let i = 1; i <= stepNum; i++) {
+      const stepEl = document.querySelector(`.stepper__step:nth-child(${i})`);
+      if (!stepEl) continue;
+
+      if (i < stepNum) {
+        stepEl.classList.add('completed');
+        stepEl.classList.remove('active');
+      } else if (i === stepNum) {
+        stepEl.classList.add('active');
+        stepEl.classList.remove('completed');
+      }
+    }
+  }
+
   async function showSuccess() {
-    const statusEl = document.querySelector('.status-indicator');
-    statusEl.innerHTML = '<span style="color: #22c55e; font-size: 1.5rem;"><i class="ph ph-check-circle"></i></span> Successfully joined mesh!';
-    statusEl.style.background = '#dcfce7';
-    statusEl.style.color = '#166534';
+    // Update stepper to pairing
+    updateStepper('pairing');
+
+    const statusBox = document.getElementById('status-box');
+    const statusContent = statusBox.querySelector('.status-content');
+    statusContent.innerHTML = '<div class="spinner"></div><span>Pairing in progress...</span>';
 
     debugLog('Claiming session cookie...', 'info');
 
@@ -346,10 +466,15 @@
       debugLog(`ERROR claiming session: ${error.message}`, 'error');
     }
 
+    // Update to complete
+    updateStepper('complete');
+    statusBox.classList.add('success');
+    statusContent.innerHTML = '<i class="ph ph-check-circle" style="font-size: 1.5rem;"></i><span>Successfully joined mesh!</span>';
+
     setTimeout(() => {
       debugLog('Redirecting to dashboard...', 'success');
       window.location.href = '/dashboard';
-    }, 1000);
+    }, 1500);
   }
 
   document.addEventListener('DOMContentLoaded', initJoinPage);
@@ -370,44 +495,70 @@
 
 {% block content %}
 <div class="join-container">
-  <div class="join-header">
-    <div class="join-header__icon"><i class="ph ph-globe"></i></div>
-    <h1 class="join-header__title">Join Your Mesh</h1>
-    <p class="join-header__subtitle">Add this device to your personal mesh network</p>
-  </div>
-
   <div class="join-card">
-    <div class="device-info">
-      <div class="device-info__label">This device is available at:</div>
-      <div class="device-info__value">{{ local_ip }}:6969</div>
+    <div class="join-header">
+      <h1 class="join-header__title">Join Mesh Network</h1>
     </div>
 
-    <div class="pin-display">
-      <div class="pin-display__label">Your 6-Digit PIN:</div>
-      <div class="pin-display__code" id="pin-code">------</div>
-    </div>
-
-    <div class="instructions">
-      <div class="instructions__title">
-        <i class="ph ph-info"></i>
-        How to Add This Device
+    <!-- Progress Stepper -->
+    <div class="stepper">
+      <div class="stepper__step completed">
+        <div class="stepper__circle">1</div>
+        <div class="stepper__label">Scan QR</div>
+        <div class="stepper__line"></div>
       </div>
-      <ol>
-        <li>On <strong>any device already in your mesh</strong>, open the Dashboard</li>
-        <li>Click <strong>"Add Device"</strong></li>
-        <li>Enter this device's <strong>IP and PIN</strong> shown above</li>
-        <li>That's it! Joining one device connects you to the entire mesh</li>
-      </ol>
+      <div class="stepper__step active" id="step-pin">
+        <div class="stepper__circle">2</div>
+        <div class="stepper__label">Enter PIN</div>
+        <div class="stepper__line"></div>
+      </div>
+      <div class="stepper__step" id="step-pairing">
+        <div class="stepper__circle">3</div>
+        <div class="stepper__label">Pairing</div>
+        <div class="stepper__line"></div>
+      </div>
+      <div class="stepper__step" id="step-complete">
+        <div class="stepper__circle">4</div>
+        <div class="stepper__label">Complete</div>
+      </div>
     </div>
 
-    <div class="qr-section">
-      <div class="qr-section__title">Or scan this QR code from a mobile device:</div>
-      <canvas id="qr-code"></canvas>
+    <!-- PIN Section -->
+    <div class="content-section">
+      <div class="section-header">
+        <i class="ph ph-key"></i>
+        <span>Second: Enter PIN on Desktop</span>
+      </div>
+      <p class="section-description">
+        Enter this 6-digit PIN on your desktop device to securely pair this device with your mesh network.
+      </p>
+      <div class="pin-container">
+        <div class="pin-display__code" id="pin-code">------</div>
+      </div>
     </div>
 
-    <div class="status-indicator">
-      <div class="spinner"></div>
-      Waiting for connection...
+    <!-- Instructions -->
+    <div class="content-section">
+      <div class="section-header">
+        <i class="ph ph-list-checks"></i>
+        <span>On your desktop:</span>
+      </div>
+      <div class="instructions-list">
+        <ol>
+          <li>Open the Dashboard and click "Add Device"</li>
+          <li>Enter the IP: <strong>{{ local_ip }}:6969</strong></li>
+          <li>Enter the PIN shown above</li>
+          <li>Click "Verify PIN" to complete pairing</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-box" id="status-box">
+      <div class="status-content">
+        <div class="spinner"></div>
+        <span>Waiting for desktop to verify PIN...</span>
+      </div>
     </div>
   </div>
 </div>

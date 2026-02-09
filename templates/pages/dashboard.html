@@ -278,7 +278,9 @@
             ${node.name}
             ${isCurrent ? '<span class="badge">This Device</span>' : ''}
           </h3>
-          <div class="node-card__address">${node.hostname}:${node.port}</div>
+          <div class="node-card__address" style="opacity: 0.5; font-size: 0.875rem;">
+            ${isOnline ? `Currently at ${node.hostname}:${node.port}` : 'Offline'}
+          </div>
 
           ${node.capabilities.length > 0 ? `
             <div class="node-card__capabilities">

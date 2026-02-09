@@ -45,35 +45,53 @@ impl MutationRoot {
         let pool = ctx.data::<Pool<SqliteConnectionManager>>()?;
         let conn = pool.get()?;
 
-        // Check if a device with this hostname already exists
-        let existing: Result<String, rusqlite::Error> = conn.query_row(
-            "SELECT name FROM mesh_nodes WHERE hostname = ?1 AND is_current = 0",
+        // Use provided node_id if available, otherwise generate a new one
+        let node_id = input
+            .node_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::now_v7().to_string());
+
+        // Check if a device with this hostname already exists (but NOT this node_id)
+        // If same node_id is reconnecting, we'll update it (upsert)
+        let existing: Result<(String, String), rusqlite::Error> = conn.query_row(
+            "SELECT name, id FROM mesh_nodes WHERE hostname = ?1 AND is_current = 0",
             params![input.hostname],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         );
 
-        if let Ok(existing_name) = existing {
-            return Ok(NodeOperationResult {
-                success: false,
-                message: format!(
-                    "Device already connected as '{}'. Each device can only be added once.",
-                    existing_name
-                ),
-                node: None,
-                access_token: None,
-                expires_at: None,
-                permissions: None,
-            });
+        if let Ok((existing_name, existing_id)) = existing {
+            // If it's a different device trying to use the same IP, reject it
+            if existing_id != node_id {
+                return Ok(NodeOperationResult {
+                    success: false,
+                    message: format!(
+                        "Device already connected as '{}'. Each device can only be added once.",
+                        existing_name
+                    ),
+                    node: None,
+                    access_token: None,
+                    expires_at: None,
+                    permissions: None,
+                });
+            }
+            // If it's the same device (same node_id), we'll update below
         }
 
-        let node_id = uuid::Uuid::now_v7().to_string();
         let now = Utc::now().to_rfc3339();
         let capabilities_json = serde_json::to_string(&input.capabilities.unwrap_or_default())
             .unwrap_or_else(|_| "[]".to_string());
 
+        // Use INSERT OR REPLACE to handle re-registration of the same device
         let result = conn.execute(
             "INSERT INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, created_at, metadata, is_current)
-             VALUES (?1, ?2, ?3, ?4, 'offline', ?5, ?6, ?7, ?8, 0)",
+             VALUES (?1, ?2, ?3, ?4, 'offline', ?5, ?6, COALESCE((SELECT created_at FROM mesh_nodes WHERE id = ?1), ?7), ?8, 0)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               hostname = excluded.hostname,
+               port = excluded.port,
+               capabilities = excluded.capabilities,
+               last_seen = excluded.last_seen,
+               metadata = excluded.metadata",
             params![
                 node_id,
                 input.name,

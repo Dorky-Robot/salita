@@ -674,9 +674,9 @@
         port: 6969
       };
 
-      // Include node_id if we received it from the joining device
+      // Include nodeId if we received it from the joining device
       if (window.joiningDeviceNodeId) {
-        input.node_id = window.joiningDeviceNodeId;
+        input.nodeId = window.joiningDeviceNodeId;
       }
 
       const registerResponse = await fetch('/graphql', {

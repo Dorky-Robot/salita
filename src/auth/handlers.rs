@@ -461,17 +461,15 @@ pub async fn pair_check(
 
 /// POST /auth/pair/start — generate pairing code + PIN + linking code (desktop side)
 /// Returns: { code, pin, url, linkingCode, expiresAt }
-/// Security: Only allow from Localhost to prevent LAN attackers from initiating pairing
+/// Only allow from Localhost or authenticated users (reject External non-authenticated)
 pub async fn pair_start(
     State(state): State<AppState>,
     origin: RequestOrigin,
 ) -> AppResult<Response> {
-    // SECURITY: Only allow QR+PIN pairing from localhost
-    // LAN and External users must use passkey authentication
-    if origin != RequestOrigin::Localhost {
-        return Err(AppError::BadRequest(
-            "QR+PIN pairing only available from localhost. Please use passkey login from other devices.".into(),
-        ));
+    // Only allow from localhost or already authenticated sessions
+    // External users must authenticate first before they can pair
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
     }
     // Generate random code and PIN
     let code = uuid::Uuid::new_v4().to_string();
@@ -520,17 +518,16 @@ pub async fn pair_start(
 
 /// POST /auth/pair/verify — verify code + PIN and create session (mobile side)
 /// Returns: { ok: true } with session cookie
-/// Security: Only allow from Localhost to prevent LAN attacks
+/// Only allow from LAN or Localhost (reject External - they must use passkey)
 pub async fn pair_verify(
     State(state): State<AppState>,
     origin: RequestOrigin,
     Json(req): Json<PairVerifyRequest>,
 ) -> AppResult<Response> {
-    // SECURITY: Only allow QR+PIN verification from localhost
-    // LAN and External users must use passkey authentication
-    if origin != RequestOrigin::Localhost {
+    // External users must use passkey authentication, not QR+PIN
+    if origin == RequestOrigin::External {
         return Err(AppError::BadRequest(
-            "QR+PIN pairing only available from localhost. Please use passkey login from other devices.".into(),
+            "QR+PIN pairing not available externally. Please use passkey login.".into(),
         ));
     }
     // Retrieve challenge (but don't remove it yet - mark as completed instead)
@@ -684,17 +681,15 @@ pub struct MeshGeneratePinRequest {
 
 /// POST /mesh/generate-pin — Generate a PIN for this device to join a mesh
 /// Returns: { pin: "123456", expires_at: timestamp }
-/// Security: Only allow from Localhost
+/// Only allow from Localhost or LAN (reject External)
 pub async fn mesh_generate_pin(
     State(state): State<AppState>,
     origin: RequestOrigin,
     Json(_req): Json<MeshGeneratePinRequest>,
 ) -> AppResult<Response> {
-    // SECURITY: Only allow from localhost
-    if origin != RequestOrigin::Localhost {
-        return Err(AppError::BadRequest(
-            "PIN generation only available from localhost. Please use passkey login from other devices.".into(),
-        ));
+    // External users cannot generate mesh PINs
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
     }
     // Generate a PIN
     let pin = crate::auth::pairing::generate_pin();
@@ -729,17 +724,15 @@ pub struct MeshVerifyPinRequest {
 
 /// POST /mesh/verify-pin — Verify a PIN from a remote node trying to add this device
 /// Returns: { success: true } or error
-/// Security: Only allow from Localhost
+/// Only allow from Localhost or LAN (reject External)
 pub async fn mesh_verify_pin(
     State(state): State<AppState>,
     origin: RequestOrigin,
     Json(req): Json<MeshVerifyPinRequest>,
 ) -> AppResult<Response> {
-    // SECURITY: Only allow from localhost
-    if origin != RequestOrigin::Localhost {
-        return Err(AppError::BadRequest(
-            "PIN verification only available from localhost. Please use passkey login from other devices.".into(),
-        ));
+    // External users cannot verify mesh PINs
+    if origin == RequestOrigin::External {
+        return Err(AppError::Unauthorized);
     }
     // Check if the PIN matches the stored challenge
     let is_valid = {

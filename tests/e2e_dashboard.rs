@@ -14,11 +14,12 @@ async fn create_test_session(client: &Client) -> Result<String, Box<dyn std::err
         .await?;
 
     // Extract session cookie
-    if let Some(cookie) = response.cookies().find(|c| c.name() == "salita_session") {
-        Ok(cookie.value().to_string())
-    } else {
-        Err("No session cookie returned".into())
-    }
+    let cookie_value = response
+        .cookies()
+        .find(|c| c.name() == "salita_session")
+        .map(|c| c.value().to_string());
+
+    cookie_value.ok_or_else(|| "No session cookie returned".into())
 }
 
 #[tokio::test]

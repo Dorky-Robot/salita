@@ -132,7 +132,6 @@ async fn verify_join_pin(
     State(state): State<AppState>,
     axum::Json(request): axum::Json<VerifyPinRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
-    use axum::http::header;
 
     tracing::info!("Verifying PIN - token: {}, pin: {}", request.token, request.pin);
 
@@ -157,7 +156,7 @@ async fn verify_join_pin(
         join_tokens.tokens.get(&request.token).cloned()
     };
 
-    let device_info = device_info.ok_or_else(|| AppError::BadRequest("Token not found".into()))?;
+    let _device_info = device_info.ok_or_else(|| AppError::BadRequest("Token not found".into()))?;
 
     tracing::info!("PIN verified successfully for device");
 

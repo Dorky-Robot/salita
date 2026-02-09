@@ -18,9 +18,9 @@ fi
 echo "🔍 Running clippy..."
 cargo clippy -- -W clippy::all 2>&1 | head -30 || true
 
-# Run unit tests
+# Run tests (excluding ignored E2E tests)
 echo "🧪 Running tests..."
-if ! cargo test --lib; then
+if ! cargo test; then
     echo "❌ Tests failed"
     exit 1
 fi

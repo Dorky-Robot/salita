@@ -106,10 +106,7 @@ pub fn is_lan_host(host: &str) -> bool {
 
 /// Detect the origin of a request
 /// Localhost takes precedence over LAN
-pub fn detect_origin(
-    connect_info: &ConnectInfo<SocketAddr>,
-    _host: Option<&str>,
-) -> RequestOrigin {
+pub fn detect_origin(connect_info: &ConnectInfo<SocketAddr>, _host: Option<&str>) -> RequestOrigin {
     let ip = connect_info.0.ip();
 
     // First check if the actual socket connection is from localhost
@@ -242,10 +239,7 @@ mod tests {
     #[test]
     fn test_detect_origin_lan() {
         let lan = make_connect_info(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)));
-        assert_eq!(
-            detect_origin(&lan, Some("192.168.1.1")),
-            RequestOrigin::Lan
-        );
+        assert_eq!(detect_origin(&lan, Some("192.168.1.1")), RequestOrigin::Lan);
     }
 
     #[test]

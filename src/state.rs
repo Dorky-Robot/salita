@@ -7,8 +7,6 @@ use tokio::sync::Mutex;
 use webauthn_rs::Webauthn;
 
 use crate::auth::join_tokens::JoinTokenStore;
-use crate::auth::linking::LinkingCodeStore;
-use crate::auth::pairing::PairingStore;
 use crate::auth::webauthn::CeremonyStore;
 use crate::config::Config;
 use crate::graphql::MeshSchema;
@@ -22,8 +20,6 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub webauthn: Arc<Webauthn>,
     pub ceremonies: Arc<Mutex<CeremonyStore>>,
-    pub pairings: Arc<Mutex<PairingStore>>,
-    pub linking_codes: Arc<Mutex<LinkingCodeStore>>,
     pub join_tokens: Arc<Mutex<JoinTokenStore>>,
     pub graphql_schema: MeshSchema,
 }

@@ -8,10 +8,7 @@ const BASE_URL: &str = "http://localhost:6969";
 /// Helper to create an authenticated session
 async fn create_test_session(client: &Client) -> Result<String, Box<dyn std::error::Error>> {
     // Use the /test/seed endpoint if SALITA_TEST_SEED is set
-    let response = client
-        .get(format!("{}/test/seed", BASE_URL))
-        .send()
-        .await?;
+    let response = client.get(format!("{}/test/seed", BASE_URL)).send().await?;
 
     // Extract session cookie
     let cookie_value = response

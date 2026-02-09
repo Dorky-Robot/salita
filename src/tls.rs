@@ -224,13 +224,13 @@ pub fn generate_mobileconfig(ca_cert_path: &Path, instance_name: &str) -> anyhow
     let profile_uuid = uuid::Uuid::now_v7().to_string();
 
     let cert_payload = plist::Dictionary::from_iter([
-        (
-            "PayloadContent".to_string(),
-            plist::Value::Data(der_bytes),
-        ),
+        ("PayloadContent".to_string(), plist::Value::Data(der_bytes)),
         (
             "PayloadDescription".to_string(),
-            plist::Value::String(format!("Adds the {} Local CA to trusted roots", instance_name)),
+            plist::Value::String(format!(
+                "Adds the {} Local CA to trusted roots",
+                instance_name
+            )),
         ),
         (
             "PayloadDisplayName".to_string(),
@@ -317,13 +317,7 @@ fn attempt_macos_trust(ca_cert_path: &Path) {
     let login_keychain = format!("{}/Library/Keychains/login.keychain-db", home);
 
     let status = std::process::Command::new("security")
-        .args([
-            "add-trusted-cert",
-            "-r",
-            "trustRoot",
-            "-k",
-            &login_keychain,
-        ])
+        .args(["add-trusted-cert", "-r", "trustRoot", "-k", &login_keychain])
         .arg(ca_cert_path)
         .status();
 
@@ -356,7 +350,10 @@ mod tests {
     #[test]
     fn tls_paths_structure() {
         let paths = TlsPaths::new(Path::new("/home/user/.salita"));
-        assert_eq!(paths.ca_cert, PathBuf::from("/home/user/.salita/tls/ca.crt"));
+        assert_eq!(
+            paths.ca_cert,
+            PathBuf::from("/home/user/.salita/tls/ca.crt")
+        );
         assert_eq!(paths.ca_key, PathBuf::from("/home/user/.salita/tls/ca.key"));
         assert_eq!(
             paths.server_cert,

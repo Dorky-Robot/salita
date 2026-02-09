@@ -9,7 +9,6 @@ use serde::Deserialize;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio_stream::StreamExt as _;
 
 use crate::error::{AppError, AppResult};
 use crate::extractors::CurrentUser;
@@ -75,10 +74,7 @@ async fn join_modal(State(state): State<AppState>) -> AppResult<impl IntoRespons
         lan_ip, state.config.server.port, token
     );
 
-    let template = JoinModalTemplate {
-        join_url,
-        lan_ip,
-    };
+    let template = JoinModalTemplate { join_url, lan_ip };
     Ok(Html(template))
 }
 
@@ -132,8 +128,11 @@ async fn verify_join_pin(
     State(state): State<AppState>,
     axum::Json(request): axum::Json<VerifyPinRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
-
-    tracing::info!("Verifying PIN - token: {}, pin: {}", request.token, request.pin);
+    tracing::info!(
+        "Verifying PIN - token: {}, pin: {}",
+        request.token,
+        request.pin
+    );
 
     // Get device info and verify PIN
     let device_info = {
@@ -141,8 +140,11 @@ async fn verify_join_pin(
 
         // Debug: log what we have stored
         if let Some(stored_token) = join_tokens.tokens.get(&request.token) {
-            tracing::info!("Found token - used: {}, stored_pin: {:?}",
-                stored_token.used, stored_token.pin);
+            tracing::info!(
+                "Found token - used: {}, stored_pin: {:?}",
+                stored_token.used,
+                stored_token.pin
+            );
         } else {
             tracing::warn!("Token not found in store");
         }
@@ -163,33 +165,36 @@ async fn verify_join_pin(
     // NOTE: Device will be registered by the join modal's GraphQL mutation
     // We only create the session here so the phone can authenticate
 
-    let conn = state.db.get()
+    let conn = state
+        .db
+        .get()
         .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
 
     // Create or get default user
-    let user_id = conn.query_row(
-        "SELECT id FROM users WHERE username = 'default' LIMIT 1",
-        [],
-        |row| row.get::<_, String>(0),
-    ).unwrap_or_else(|_| {
-        // Create default user
-        let uid = uuid::Uuid::now_v7().to_string();
-        tracing::info!("Creating default user with id: {}", uid);
-        conn.execute(
-            "INSERT INTO users (id, username, is_admin) VALUES (?1, 'default', 1)",
-            rusqlite::params![&uid],
-        ).ok();
-        uid
-    });
+    let user_id = conn
+        .query_row(
+            "SELECT id FROM users WHERE username = 'default' LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| {
+            // Create default user
+            let uid = uuid::Uuid::now_v7().to_string();
+            tracing::info!("Creating default user with id: {}", uid);
+            conn.execute(
+                "INSERT INTO users (id, username, is_admin) VALUES (?1, 'default', 1)",
+                rusqlite::params![&uid],
+            )
+            .ok();
+            uid
+        });
 
     tracing::info!("Using user_id: {}", user_id);
 
     // Create session
-    let session_token = crate::auth::session::create_session(
-        &state.db,
-        &user_id,
-        state.config.auth.session_hours,
-    ).map_err(|e| AppError::Internal(format!("Failed to create session: {}", e)))?;
+    let session_token =
+        crate::auth::session::create_session(&state.db, &user_id, state.config.auth.session_hours)
+            .map_err(|e| AppError::Internal(format!("Failed to create session: {}", e)))?;
 
     tracing::info!("Created session token: {}", &session_token[..16]);
 
@@ -216,14 +221,18 @@ async fn claim_session(
 ) -> AppResult<impl axum::response::IntoResponse> {
     use axum::http::header;
 
-    let token = query.token.ok_or_else(|| AppError::BadRequest("Token required".into()))?;
+    let token = query
+        .token
+        .ok_or_else(|| AppError::BadRequest("Token required".into()))?;
 
     tracing::info!("Phone claiming session for token: {}", token);
 
     // Get session token from join token
     let session_token = {
         let join_tokens = state.join_tokens.lock().await;
-        let join_token = join_tokens.tokens.get(&token)
+        let join_token = join_tokens
+            .tokens
+            .get(&token)
             .ok_or_else(|| AppError::BadRequest("Invalid token".into()))?;
 
         // Check if PIN was verified (device_ip should be set and used should be true)
@@ -233,7 +242,9 @@ async fn claim_session(
         }
 
         // Get session token
-        join_token.session_token.clone()
+        join_token
+            .session_token
+            .clone()
             .ok_or_else(|| AppError::BadRequest("Session not ready yet".into()))?
     };
 
@@ -248,7 +259,7 @@ async fn claim_session(
 
     Ok((
         [(header::SET_COOKIE, cookie)],
-        axum::Json(serde_json::json!({ "success": true }))
+        axum::Json(serde_json::json!({ "success": true })),
     ))
 }
 
@@ -289,9 +300,7 @@ async fn join_events(
                     sent = true;
                     let ip = device_ip.unwrap_or_else(|| "Unknown".to_string());
                     let data = format!(r#"{{"device_ip":"{}","status":"connected"}}"#, ip);
-                    let event = Event::default()
-                        .event("token-used")
-                        .data(data);
+                    let event = Event::default().event("token-used").data(data);
 
                     return Some((Ok(event), (state, token, sent)));
                 }

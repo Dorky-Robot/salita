@@ -32,10 +32,8 @@ impl MutationRoot {
 
         let node_id = uuid::Uuid::now_v7().to_string();
         let now = Utc::now().to_rfc3339();
-        let capabilities_json = serde_json::to_string(
-            &input.capabilities.unwrap_or_default(),
-        )
-        .unwrap_or_else(|_| "[]".to_string());
+        let capabilities_json = serde_json::to_string(&input.capabilities.unwrap_or_default())
+            .unwrap_or_else(|_| "[]".to_string());
 
         let result = conn.execute(
             "INSERT INTO mesh_nodes (id, name, hostname, port, status, capabilities, last_seen, created_at, metadata, is_current)

@@ -10,9 +10,9 @@ pub struct JoinToken {
     pub created_by: String, // Node ID that created it
     pub expires_at: Instant,
     pub used: bool,
-    pub device_ip: Option<String>,      // IP of device that used the token
-    pub pin: Option<String>,            // PIN shown on device for verification
-    pub session_token: Option<String>,  // Session token after PIN verification
+    pub device_ip: Option<String>, // IP of device that used the token
+    pub pin: Option<String>,       // PIN shown on device for verification
+    pub session_token: Option<String>, // Session token after PIN verification
 }
 
 /// Store for ephemeral join tokens
@@ -71,8 +71,13 @@ impl JoinTokenStore {
         }
 
         // Generate PIN for this device
-        let pin = crate::auth::pairing::generate_pin();
-        tracing::info!("Generated PIN {} for token {} from device {}", pin, token, device_ip);
+        let pin = generate_pin();
+        tracing::info!(
+            "Generated PIN {} for token {} from device {}",
+            pin,
+            token,
+            device_ip
+        );
 
         // Mark as used and store device IP + PIN
         join_token.used = true;
@@ -89,8 +94,14 @@ impl JoinTokenStore {
             let is_used = join_token.used;
             let pins_match = stored_pin.map(|p| p == pin).unwrap_or(false);
 
-            tracing::info!("Verifying token {} - used: {}, stored_pin: {:?}, provided_pin: {}, match: {}",
-                token, is_used, stored_pin, pin, pins_match);
+            tracing::info!(
+                "Verifying token {} - used: {}, stored_pin: {:?}, provided_pin: {}, match: {}",
+                token,
+                is_used,
+                stored_pin,
+                pin,
+                pins_match
+            );
 
             is_used && pins_match
         } else {
@@ -130,6 +141,13 @@ fn generate_secure_token() -> String {
         .collect();
 
     token
+}
+
+/// Generate a 6-digit PIN
+fn generate_pin() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    format!("{:06}", rng.gen_range(0..1_000_000))
 }
 
 #[cfg(test)]

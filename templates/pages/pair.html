@@ -170,7 +170,8 @@
           throw new Error(err.error || "Pairing failed");
         }
 
-        window.location.href = "/";
+        // Redirect to dashboard to show connected mesh network
+        window.location.href = "/dashboard";
       } catch (err) {
         errorMsg.textContent = err.message;
         pairBtn.disabled = false;

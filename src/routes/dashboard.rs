@@ -213,6 +213,94 @@ async fn verify_join_pin(
     Ok(axum::Json(serde_json::json!({ "valid": true })))
 }
 
+/// Issue a peer token to another device (for bidirectional auth)
+#[derive(Deserialize)]
+struct IssuePeerTokenRequest {
+    peer_node_id: String,
+    peer_name: String,
+}
+
+#[derive(serde::Serialize)]
+struct IssuePeerTokenResponse {
+    access_token: String,
+    expires_at: String,
+    permissions: Vec<String>,
+    issuer_node_id: String,
+}
+
+async fn issue_peer_token(
+    State(state): State<AppState>,
+    axum::Json(request): axum::Json<IssuePeerTokenRequest>,
+) -> AppResult<impl axum::response::IntoResponse> {
+    use crate::mesh::tokens;
+    use chrono::{Duration, Utc};
+
+    tracing::info!("Issuing peer token to node: {}", request.peer_node_id);
+
+    let conn = state
+        .db
+        .get()
+        .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
+
+    // Get current node's ID
+    let current_node_id: String = conn
+        .query_row(
+            "SELECT id FROM mesh_nodes WHERE is_current = 1 LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| AppError::Internal(format!("Failed to get current node: {}", e)))?;
+
+    // Issue token
+    let permissions = tokens::default_permissions();
+    let expires_at = Utc::now() + Duration::days(30);
+    let expires_at_str = expires_at.to_rfc3339();
+
+    let token = tokens::issue_token(&conn, &request.peer_node_id, &permissions, &expires_at_str)
+        .map_err(|e| AppError::Internal(format!("Failed to issue token: {}", e)))?;
+
+    tracing::info!("Issued token to {}: {}", request.peer_name, &token[..16]);
+
+    Ok(axum::Json(IssuePeerTokenResponse {
+        access_token: token,
+        expires_at: expires_at_str,
+        permissions,
+        issuer_node_id: current_node_id,
+    }))
+}
+
+/// Update join token with device's node ID
+/// The phone calls this to register its persistent node ID during pairing
+#[derive(Deserialize)]
+struct UpdateNodeIdRequest {
+    token: String,
+    node_id: String,
+}
+
+async fn update_node_id(
+    State(state): State<AppState>,
+    axum::Json(request): axum::Json<UpdateNodeIdRequest>,
+) -> AppResult<impl axum::response::IntoResponse> {
+    tracing::info!(
+        "Phone sending node_id: {} for token: {}",
+        request.node_id,
+        request.token
+    );
+
+    // Store node_id in join token
+    {
+        let mut join_tokens = state.join_tokens.lock().await;
+        if let Some(join_token) = join_tokens.tokens.get_mut(&request.token) {
+            join_token.device_node_id = Some(request.node_id);
+            tracing::info!("Stored device node_id in join token");
+        } else {
+            return Err(AppError::BadRequest("Invalid token".into()));
+        }
+    }
+
+    Ok(axum::Json(serde_json::json!({ "success": true })))
+}
+
 /// Claim session cookie after PIN verification
 /// The phone calls this to get its session after desktop verifies the PIN
 async fn claim_session(
@@ -285,21 +373,25 @@ async fn join_events(
     let stream = stream::unfold(
         (state.clone(), token.clone(), false),
         move |(state, token, mut sent)| async move {
-            // Check if token has been used and get device IP
+            // Check if token has been used and get device info
             let token_info = {
                 let join_tokens = state.join_tokens.lock().await;
                 join_tokens
                     .tokens
                     .get(&token)
-                    .map(|t| (t.used, t.device_ip.clone()))
+                    .map(|t| (t.used, t.device_ip.clone(), t.device_node_id.clone()))
             };
 
-            if let Some((is_used, device_ip)) = token_info {
+            if let Some((is_used, device_ip, device_node_id)) = token_info {
                 if is_used && !sent {
-                    // Token was used! Send event with device IP
+                    // Token was used! Send event with device IP and node ID
                     sent = true;
                     let ip = device_ip.unwrap_or_else(|| "Unknown".to_string());
-                    let data = format!(r#"{{"device_ip":"{}","status":"connected"}}"#, ip);
+                    let node_id = device_node_id.unwrap_or_else(|| "".to_string());
+                    let data = format!(
+                        r#"{{"device_ip":"{}","device_node_id":"{}","status":"connected"}}"#,
+                        ip, node_id
+                    );
                     let event = Event::default().event("token-used").data(data);
 
                     return Some((Ok(event), (state, token, sent)));
@@ -330,6 +422,8 @@ pub fn router() -> Router<AppState> {
         .route("/mesh/join-modal", get(join_modal))
         .route("/mesh/join-events", get(join_events))
         .route("/mesh/verify-join-pin", post(verify_join_pin))
+        .route("/mesh/update-node-id", post(update_node_id))
+        .route("/mesh/issue-peer-token", post(issue_peer_token))
         .route("/mesh/claim-session", get(claim_session))
         .route("/join", get(join_mesh))
 }

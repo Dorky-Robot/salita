@@ -1,3 +1,4 @@
+pub mod flexible_auth;
 pub mod handlers;
 pub mod join_tokens;
 pub mod peer_auth;

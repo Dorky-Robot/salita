@@ -64,6 +64,9 @@ pub enum NodeStatus {
 /// Input for registering a new node
 #[derive(InputObject)]
 pub struct RegisterNodeInput {
+    /// Persistent node ID (optional - if not provided, server generates one)
+    pub node_id: Option<String>,
+
     /// Node name
     pub name: String,
 
@@ -101,6 +104,48 @@ pub struct NodeOperationResult {
 
     /// The affected node (if applicable)
     pub node: Option<MeshNode>,
+
+    /// Access token for peer-to-peer authentication (issued during registration)
+    pub access_token: Option<String>,
+
+    /// Token expiration timestamp (RFC3339)
+    pub expires_at: Option<String>,
+
+    /// Permissions granted to this token
+    pub permissions: Option<Vec<String>>,
+}
+
+impl NodeOperationResult {
+    /// Create a result without tokens (for non-registration operations)
+    pub fn without_token(success: bool, message: String, node: Option<MeshNode>) -> Self {
+        Self {
+            success,
+            message,
+            node,
+            access_token: None,
+            expires_at: None,
+            permissions: None,
+        }
+    }
+
+    /// Create a result with token (for successful registrations)
+    pub fn with_token(
+        success: bool,
+        message: String,
+        node: Option<MeshNode>,
+        access_token: String,
+        expires_at: String,
+        permissions: Vec<String>,
+    ) -> Self {
+        Self {
+            success,
+            message,
+            node,
+            access_token: Some(access_token),
+            expires_at: Some(expires_at),
+            permissions: Some(permissions),
+        }
+    }
 }
 
 /// Connection between two nodes

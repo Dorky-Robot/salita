@@ -35,7 +35,7 @@
       <div class="wizard-panel wizard-panel--active" data-panel="1">
         <div class="wizard-panel__content">
           <div class="join-section">
-            <h3 class="join-section__title">📱 First: Trust Certificate</h3>
+            <h3 class="join-section__title"><i class="ph ph-device-mobile"></i> First: Trust Certificate</h3>
             <p style="color: #666; margin-bottom: 1.5rem;">
               Scan this QR code on your mobile device to install the HTTPS certificate.
               This is required before joining the mesh.
@@ -102,7 +102,7 @@
       <!-- Step 3: Enter PIN -->
       <div class="wizard-panel" data-panel="3">
         <div class="wizard-panel__content">
-          <div class="wizard-success-icon">✓</div>
+          <div class="wizard-success-icon"><i class="ph ph-check-circle"></i></div>
           <h3 class="wizard-panel__title">Device Connected!</h3>
           <p class="wizard-panel__text">
             Enter the PIN shown on the device's screen to complete setup.
@@ -162,7 +162,7 @@
       <!-- Step 4: Complete -->
       <div class="wizard-panel" data-panel="4">
         <div class="wizard-panel__content">
-          <div class="wizard-success-icon" style="color: #22c55e;">✓</div>
+          <div class="wizard-success-icon" style="color: #22c55e;"><i class="ph ph-check-circle"></i></div>
           <h3 class="wizard-panel__title">Successfully Added!</h3>
           <p class="wizard-panel__text">
             The device is now part of your mesh network.
@@ -569,7 +569,7 @@
           // Update the success message
           const successPanel = document.querySelector('[data-panel="4"] .wizard-panel__content');
           successPanel.innerHTML = `
-            <div class="wizard-success-icon" style="color: #3b82f6;">ℹ️</div>
+            <div class="wizard-success-icon" style="color: #3b82f6;"><i class="ph ph-info"></i></div>
             <h3 class="wizard-panel__title">Already Connected</h3>
             <p class="wizard-panel__text">
               This device is already part of your mesh network.

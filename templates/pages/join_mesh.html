@@ -264,7 +264,7 @@
 
   async function showSuccess() {
     const statusEl = document.querySelector('.status-indicator');
-    statusEl.innerHTML = '<span style="color: #22c55e; font-size: 1.5rem;">✓</span> Successfully joined mesh!';
+    statusEl.innerHTML = '<span style="color: #22c55e; font-size: 1.5rem;"><i class="ph ph-check-circle"></i></span> Successfully joined mesh!';
     statusEl.style.background = '#dcfce7';
     statusEl.style.color = '#166534';
 
@@ -313,7 +313,7 @@
 {% block content %}
 <div class="join-container">
   <div class="join-header">
-    <div class="join-header__icon">🌐</div>
+    <div class="join-header__icon"><i class="ph ph-globe"></i></div>
     <h1 class="join-header__title">Join Your Mesh</h1>
     <p class="join-header__subtitle">Add this device to your personal mesh network</p>
   </div>

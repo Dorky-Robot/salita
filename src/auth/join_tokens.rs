@@ -10,8 +10,9 @@ pub struct JoinToken {
     pub created_by: String, // Node ID that created it
     pub expires_at: Instant,
     pub used: bool,
-    pub device_ip: Option<String>, // IP of device that used the token
-    pub pin: Option<String>,        // PIN shown on device for verification
+    pub device_ip: Option<String>,      // IP of device that used the token
+    pub pin: Option<String>,            // PIN shown on device for verification
+    pub session_token: Option<String>,  // Session token after PIN verification
 }
 
 /// Store for ephemeral join tokens
@@ -42,6 +43,7 @@ impl JoinTokenStore {
                 used: false,
                 device_ip: None,
                 pin: None,
+                session_token: None,
             },
         );
 

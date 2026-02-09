@@ -112,7 +112,7 @@ async fn join_mesh(
         .clone()
         .unwrap_or_else(|| "000000".to_string());
 
-    // Get local IP address
+    // Get local IP address (server's IP for display purposes)
     let local_ip = local_ip_address::local_ip()
         .map(|ip| ip.to_string())
         .unwrap_or_else(|_| "192.168.1.x".to_string());
@@ -131,10 +131,13 @@ struct VerifyPinRequest {
 async fn verify_join_pin(
     State(state): State<AppState>,
     axum::Json(request): axum::Json<VerifyPinRequest>,
-) -> AppResult<axum::Json<serde_json::Value>> {
+) -> AppResult<impl axum::response::IntoResponse> {
+    use axum::http::header;
+
     tracing::info!("Verifying PIN - token: {}, pin: {}", request.token, request.pin);
 
-    let is_valid = {
+    // Get device info and verify PIN
+    let device_info = {
         let join_tokens = state.join_tokens.lock().await;
 
         // Debug: log what we have stored
@@ -145,14 +148,109 @@ async fn verify_join_pin(
             tracing::warn!("Token not found in store");
         }
 
-        join_tokens.verify_pin(&request.token, &request.pin)
+        let is_valid = join_tokens.verify_pin(&request.token, &request.pin);
+        if !is_valid {
+            return Err(AppError::BadRequest("Invalid PIN".into()));
+        }
+
+        // Get device info from token
+        join_tokens.tokens.get(&request.token).cloned()
     };
 
-    if is_valid {
-        Ok(axum::Json(serde_json::json!({ "valid": true })))
-    } else {
-        Err(AppError::BadRequest("Invalid PIN".into()))
+    let device_info = device_info.ok_or_else(|| AppError::BadRequest("Token not found".into()))?;
+
+    tracing::info!("PIN verified successfully for device");
+
+    // NOTE: Device will be registered by the join modal's GraphQL mutation
+    // We only create the session here so the phone can authenticate
+
+    let conn = state.db.get()
+        .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
+
+    // Create or get default user
+    let user_id = conn.query_row(
+        "SELECT id FROM users WHERE username = 'default' LIMIT 1",
+        [],
+        |row| row.get::<_, String>(0),
+    ).unwrap_or_else(|_| {
+        // Create default user
+        let uid = uuid::Uuid::now_v7().to_string();
+        tracing::info!("Creating default user with id: {}", uid);
+        conn.execute(
+            "INSERT INTO users (id, username, is_admin) VALUES (?1, 'default', 1)",
+            rusqlite::params![&uid],
+        ).ok();
+        uid
+    });
+
+    tracing::info!("Using user_id: {}", user_id);
+
+    // Create session
+    let session_token = crate::auth::session::create_session(
+        &state.db,
+        &user_id,
+        state.config.auth.session_hours,
+    ).map_err(|e| AppError::Internal(format!("Failed to create session: {}", e)))?;
+
+    tracing::info!("Created session token: {}", &session_token[..16]);
+
+    // Store session token in join token so phone can claim it
+    {
+        let mut join_tokens = state.join_tokens.lock().await;
+        if let Some(join_token) = join_tokens.tokens.get_mut(&request.token) {
+            join_token.session_token = Some(session_token.clone());
+            tracing::info!("Stored session token in join token for phone to claim");
+        }
     }
+
+    // Return success (desktop doesn't need the cookie)
+    tracing::info!("PIN verification complete");
+
+    Ok(axum::Json(serde_json::json!({ "valid": true })))
+}
+
+/// Claim session cookie after PIN verification
+/// The phone calls this to get its session after desktop verifies the PIN
+async fn claim_session(
+    State(state): State<AppState>,
+    Query(query): Query<JoinQuery>,
+) -> AppResult<impl axum::response::IntoResponse> {
+    use axum::http::header;
+
+    let token = query.token.ok_or_else(|| AppError::BadRequest("Token required".into()))?;
+
+    tracing::info!("Phone claiming session for token: {}", token);
+
+    // Get session token from join token
+    let session_token = {
+        let join_tokens = state.join_tokens.lock().await;
+        let join_token = join_tokens.tokens.get(&token)
+            .ok_or_else(|| AppError::BadRequest("Invalid token".into()))?;
+
+        // Check if PIN was verified (device_ip should be set and used should be true)
+        if !join_token.used || join_token.device_ip.is_none() {
+            tracing::warn!("Token not verified yet");
+            return Err(AppError::BadRequest("Token not verified yet".into()));
+        }
+
+        // Get session token
+        join_token.session_token.clone()
+            .ok_or_else(|| AppError::BadRequest("Session not ready yet".into()))?
+    };
+
+    tracing::info!("Returning session cookie to phone");
+
+    // Set session cookie
+    let cookie = format!(
+        "salita_session={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
+        session_token,
+        state.config.auth.session_hours * 3600
+    );
+
+    Ok((
+        [(header::SET_COOKIE, cookie)],
+        axum::Json(serde_json::json!({ "success": true }))
+    ))
 }
 
 /// SSE endpoint for join token events
@@ -224,5 +322,6 @@ pub fn router() -> Router<AppState> {
         .route("/mesh/join-modal", get(join_modal))
         .route("/mesh/join-events", get(join_events))
         .route("/mesh/verify-join-pin", post(verify_join_pin))
+        .route("/mesh/claim-session", get(claim_session))
         .route("/join", get(join_mesh))
 }

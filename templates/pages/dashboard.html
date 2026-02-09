@@ -214,6 +214,7 @@
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           query: `query {
             currentNode { id }
@@ -339,6 +340,7 @@
       const response = await fetch('/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           query: `mutation RemoveNode($nodeId: String!) {
             removeNode(nodeId: $nodeId) {

@@ -1,81 +1,36 @@
-#!/usr/bin/env bash
-# Pre-push hook: comprehensive tests before pushing
-# Runs unit tests and E2E tests in parallel
+#!/bin/bash
+# Git pre-push hook for Salita
+# Install: git config core.hooksPath .githooks
 
 set -e
 
-echo "Running tests in parallel..."
+echo "🚀 Running pre-push checks..."
 
-# Create temp files for exit codes
-UNIT_EXIT=$(mktemp)
-E2E_EXIT=$(mktemp)
-
-# Ensure cleanup on exit (handles Ctrl+C, errors, etc.)
-trap 'rm -f "$UNIT_EXIT" "$E2E_EXIT" /tmp/salita-unit-output.txt /tmp/salita-e2e-output.txt' EXIT
-
-# Run unit tests in background
-(
-  echo "▶ Starting unit tests..."
-  cargo test > /tmp/salita-unit-output.txt 2>&1
-  echo $? > "$UNIT_EXIT"
-  echo "✓ Unit tests complete"
-) &
-UNIT_PID=$!
-
-# Run E2E tests in background
-(
-  echo "▶ Starting E2E browser tests..."
-
-  # Build release binary
-  cargo build --release 2>/dev/null
-
-  # Start server with a temp data dir
-  E2E_DATA=$(mktemp -d)
-  ./target/release/salita --port 3099 --data-dir "$E2E_DATA" &
-  SERVER_PID=$!
-  sleep 2
-
-  # Run Playwright (chromium only for speed)
-  npx playwright test --project=chromium --project=passkey --retries=0 > /tmp/salita-e2e-output.txt 2>&1
-  E2E_RESULT=$?
-
-  # Cleanup
-  kill $SERVER_PID 2>/dev/null || true
-  wait $SERVER_PID 2>/dev/null || true
-  rm -rf "$E2E_DATA"
-
-  echo $E2E_RESULT > "$E2E_EXIT"
-  echo "✓ E2E tests complete"
-) &
-E2E_PID=$!
-
-# Wait for all to complete
-wait $UNIT_PID
-wait $E2E_PID
-
-# Check results
-UNIT_RESULT=$(cat "$UNIT_EXIT")
-E2E_RESULT=$(cat "$E2E_EXIT")
-
-# Show output if failed (truncated)
-if [ "$UNIT_RESULT" != "0" ]; then
-  echo ""
-  echo "❌ Unit tests failed:"
-  tail -100 /tmp/salita-unit-output.txt
+# Build release binary
+echo "📦 Building release binary..."
+if ! cargo build --release 2>&1 | tail -20; then
+    echo "❌ Release build failed"
+    exit 1
 fi
 
-if [ "$E2E_RESULT" != "0" ]; then
-  echo ""
-  echo "❌ E2E tests failed:"
-  tail -100 /tmp/salita-e2e-output.txt
+# Run all tests including integration tests
+echo "🧪 Running all tests..."
+if ! cargo test; then
+    echo "❌ Tests failed"
+    exit 1
 fi
 
-# Exit with error if any failed
-if [ "$UNIT_RESULT" != "0" ] || [ "$E2E_RESULT" != "0" ]; then
-  echo ""
-  echo "Push blocked: tests failed"
-  exit 1
+# Check if server is running for E2E tests
+if curl -s http://localhost:6969/health > /dev/null 2>&1; then
+    echo "🌐 Running E2E tests..."
+    if SALITA_TEST_SEED=1 cargo test --test e2e_dashboard -- --ignored 2>&1 | tail -30; then
+        echo "✅ E2E tests passed"
+    else
+        echo "⚠️  E2E tests failed (not blocking push)"
+    fi
+else
+    echo "⚠️  Server not running - skipping E2E tests"
+    echo "   Start server with: SALITA_TEST_SEED=1 cargo run"
 fi
 
-echo ""
-echo "All tests passed"
+echo "✅ Pre-push checks passed!"

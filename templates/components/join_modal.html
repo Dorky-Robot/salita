@@ -628,6 +628,10 @@
       if (result.data?.registerNode.success) {
         // Success! Go to step 4
         goToStep(4);
+        // Reload dashboard to show new device
+        if (typeof loadDashboard === 'function') {
+          loadDashboard();
+        }
       } else {
         throw new Error(result.data?.registerNode.message || 'Failed to register node');
       }

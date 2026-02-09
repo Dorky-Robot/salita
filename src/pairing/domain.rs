@@ -110,6 +110,14 @@ impl PeerToken {
         Self(token.into())
     }
 
+    pub fn generate() -> Self {
+        use rand::Rng;
+        let token: String = (0..32)
+            .map(|_| format!("{:02x}", rand::thread_rng().gen::<u8>()))
+            .collect();
+        Self(token)
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -186,26 +194,25 @@ impl fmt::Display for PairingFailure {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PairingError {
+    InvalidTransition(String),
+    Expired(String),
+    PinMismatch,
+    MissingNodeId,
     TokenExpired,
     InvalidPin,
-    InvalidTransition {
-        from: &'static str,
-        to: &'static str,
-    },
     DeviceAlreadyRegistered,
-    IpConflict {
-        existing_device: String,
-    },
+    IpConflict { existing_device: String },
 }
 
 impl fmt::Display for PairingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidTransition(msg) => write!(f, "{}", msg),
+            Self::Expired(msg) => write!(f, "{}", msg),
+            Self::PinMismatch => write!(f, "Incorrect PIN"),
+            Self::MissingNodeId => write!(f, "Device node ID is required"),
             Self::TokenExpired => write!(f, "Token expired"),
             Self::InvalidPin => write!(f, "Invalid PIN"),
-            Self::InvalidTransition { from, to } => {
-                write!(f, "Invalid transition from {} to {}", from, to)
-            }
             Self::DeviceAlreadyRegistered => write!(f, "Device already registered"),
             Self::IpConflict { existing_device } => {
                 write!(f, "IP conflict with device: {}", existing_device)
@@ -240,6 +247,35 @@ impl PairingState {
         }
     }
 
+    /// Get expires_at timestamp (if state has expiration)
+    pub fn expires_at(&self) -> DateTime<Utc> {
+        match self {
+            Self::TokenCreated { expires_at, .. } => *expires_at,
+            Self::DeviceConnected { expires_at, .. } => *expires_at,
+            Self::PinVerified { created_at, .. } => *created_at + Duration::hours(24),
+            Self::DeviceRegistered { .. } => Utc::now() + Duration::days(365),
+            Self::Failed { failed_at, .. } => *failed_at,
+        }
+    }
+
+    /// Get device node ID (if available)
+    pub fn device_node_id(&self) -> Option<&NodeId> {
+        match self {
+            Self::DeviceConnected { device_node_id, .. } => device_node_id.as_ref(),
+            Self::PinVerified { device_node_id, .. } => Some(device_node_id),
+            Self::DeviceRegistered { node_id, .. } => Some(node_id),
+            _ => None,
+        }
+    }
+
+    /// Get failure reason (if failed)
+    pub fn failure_reason(&self) -> Option<&PairingFailure> {
+        match self {
+            Self::Failed { reason, .. } => Some(reason),
+            _ => None,
+        }
+    }
+
     /// Transition: Token → DeviceConnected
     pub fn connect_device(
         self,
@@ -268,10 +304,10 @@ impl PairingState {
                     pin,
                 ))
             }
-            other => Err(PairingError::InvalidTransition {
-                from: other.state_name(),
-                to: "DeviceConnected",
-            }),
+            other => Err(PairingError::InvalidTransition(format!(
+                "Cannot connect device from {} state",
+                other.state_name()
+            ))),
         }
     }
 
@@ -293,10 +329,10 @@ impl PairingState {
                 created_at,
                 expires_at,
             }),
-            other => Err(PairingError::InvalidTransition {
-                from: other.state_name(),
-                to: "DeviceConnected(with node_id)",
-            }),
+            other => Err(PairingError::InvalidTransition(format!(
+                "Cannot set node ID from {} state",
+                other.state_name()
+            ))),
         }
     }
 
@@ -325,10 +361,7 @@ impl PairingState {
                 }
 
                 // Require device_node_id to be set before PIN verification
-                let device_node_id = device_node_id.ok_or(PairingError::InvalidTransition {
-                    from: "DeviceConnected(no node_id)",
-                    to: "PinVerified",
-                })?;
+                let device_node_id = device_node_id.ok_or(PairingError::MissingNodeId)?;
 
                 Ok(Self::PinVerified {
                     token,
@@ -338,10 +371,10 @@ impl PairingState {
                     created_at: now,
                 })
             }
-            other => Err(PairingError::InvalidTransition {
-                from: other.state_name(),
-                to: "PinVerified",
-            }),
+            other => Err(PairingError::InvalidTransition(format!(
+                "Cannot verify PIN from {} state",
+                other.state_name()
+            ))),
         }
     }
 
@@ -359,10 +392,10 @@ impl PairingState {
                 peer_token,
                 session_token,
             }),
-            other => Err(PairingError::InvalidTransition {
-                from: other.state_name(),
-                to: "DeviceRegistered",
-            }),
+            other => Err(PairingError::InvalidTransition(format!(
+                "Cannot register device from {} state",
+                other.state_name()
+            ))),
         }
     }
 
@@ -543,10 +576,7 @@ mod tests {
         // Don't set node_id, try to verify PIN
         let result = state.verify_pin(&pin, SessionToken::new("session"), now);
 
-        assert!(matches!(
-            result,
-            Err(PairingError::InvalidTransition { .. })
-        ));
+        assert!(matches!(result, Err(PairingError::MissingNodeId)));
     }
 
     #[test]

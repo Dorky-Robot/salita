@@ -264,7 +264,7 @@
       const result = await registerResponse.json();
 
       if (result.data?.registerNode.success) {
-        successEl.textContent = `✓ ${name} added successfully!`;
+        successEl.innerHTML = `<i class="ph ph-check"></i> ${name} added successfully!`;
         successEl.style.display = 'block';
 
         // Reload dashboard after 1 second

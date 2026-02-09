@@ -250,9 +250,9 @@
     if (nodes.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state__icon">🌐</div>
+          <div class="empty-state__icon"><i class="ph ph-globe"></i></div>
           <h2 class="empty-state__title">No Mesh Network Yet</h2>
-          <p class="empty-state__text">Click the connect icon (🔗) in the top right to add your first device and start building your personal mesh network.</p>
+          <p class="empty-state__text">Click the link icon (<i class="ph ph-link"></i>) in the top right to add your first device and start building your personal mesh network.</p>
         </div>
       `;
       return;
@@ -313,11 +313,11 @@
   function getNodeIcon(node) {
     // Simple heuristic based on name or capabilities
     const name = node.name.toLowerCase();
-    if (name.includes('phone') || name.includes('mobile')) return '📱';
-    if (name.includes('pi') || name.includes('raspberry')) return '🥧';
-    if (name.includes('mac') || name.includes('laptop')) return '💻';
-    if (name.includes('server') || name.includes('storage')) return '💾';
-    return '🖥️';
+    if (name.includes('phone') || name.includes('mobile')) return '<i class="ph ph-device-mobile"></i>';
+    if (name.includes('pi') || name.includes('raspberry')) return '<i class="ph ph-cpu"></i>';
+    if (name.includes('mac') || name.includes('laptop')) return '<i class="ph ph-laptop"></i>';
+    if (name.includes('server') || name.includes('storage')) return '<i class="ph ph-hard-drives"></i>';
+    return '<i class="ph ph-desktop"></i>';
   }
 
   function formatTimeAgo(date) {
@@ -377,7 +377,7 @@
 <div class="dashboard">
   <div class="dashboard__header">
     <div>
-      <h1 class="dashboard__title">🌐 Mesh Network</h1>
+      <h1 class="dashboard__title"><i class="ph ph-globe"></i> Mesh Network</h1>
       <div class="dashboard__stats">
         <div class="stat">
           <span>Devices:</span>

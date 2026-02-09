@@ -30,6 +30,24 @@ impl MutationRoot {
         let pool = ctx.data::<Pool<SqliteConnectionManager>>()?;
         let conn = pool.get()?;
 
+        // Check if a device with this hostname already exists
+        let existing: Result<String, rusqlite::Error> = conn.query_row(
+            "SELECT name FROM mesh_nodes WHERE hostname = ?1 AND is_current = 0",
+            params![input.hostname],
+            |row| row.get(0),
+        );
+
+        if let Ok(existing_name) = existing {
+            return Ok(NodeOperationResult {
+                success: false,
+                message: format!(
+                    "Device already connected as '{}'. Each device can only be added once.",
+                    existing_name
+                ),
+                node: None,
+            });
+        }
+
         let node_id = uuid::Uuid::now_v7().to_string();
         let now = Utc::now().to_rfc3339();
         let capabilities_json = serde_json::to_string(&input.capabilities.unwrap_or_default())

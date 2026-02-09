@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::state::DbPool;
 
-const MIGRATIONS: &[(&str, &str)] = &[
+pub const MIGRATIONS: &[(&str, &str)] = &[
     (
         "001_initial",
         include_str!("../../migrations/001_initial.sql"),

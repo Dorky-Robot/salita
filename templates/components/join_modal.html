@@ -514,6 +514,28 @@
     }
   })();
 
+  async function checkIfDeviceExists(deviceIp) {
+    try {
+      const response = await fetch('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          query: `{ nodes { hostname } }`
+        })
+      });
+
+      const result = await response.json();
+      const nodes = result.data?.nodes || [];
+
+      // Check if any node has this hostname/IP (excluding current node)
+      return nodes.some(node => node.hostname === deviceIp);
+    } catch (error) {
+      console.error('Error checking if device exists:', error);
+      return false;
+    }
+  }
+
   function connectToTokenStream(token) {
     // Close existing connection if any
     if (joinEventSource) {
@@ -523,7 +545,7 @@
     // Open SSE connection
     joinEventSource = new EventSource(`/mesh/join-events?token=${token}`);
 
-    joinEventSource.addEventListener('token-used', (event) => {
+    joinEventSource.addEventListener('token-used', async (event) => {
       const data = JSON.parse(event.data);
       console.log('Device connected!', data);
 
@@ -533,13 +555,36 @@
         joinEventSource = null;
       }
 
-      // Auto-advance to step 3 (device connects)
-      goToStep(3);
-
-      // Populate device IP
+      // Check if this device is already registered
       if (data.device_ip) {
+        const isAlreadyRegistered = await checkIfDeviceExists(data.device_ip);
+
+        if (isAlreadyRegistered) {
+          // Skip to step 4 with "already connected" message
+          goToStep(4);
+
+          // Update the success message
+          const successPanel = document.querySelector('[data-panel="4"] .wizard-panel__content');
+          successPanel.innerHTML = `
+            <div class="wizard-success-icon" style="color: #3b82f6;">ℹ️</div>
+            <h3 class="wizard-panel__title">Already Connected</h3>
+            <p class="wizard-panel__text">
+              This device is already part of your mesh network.
+            </p>
+            <button class="btn btn--primary" style="width: 100%;" onclick="closeJoinModal()">
+              Done
+            </button>
+          `;
+
+          return;
+        }
+
+        // Populate device IP for new device
         document.getElementById('join-device-ip').value = data.device_ip;
       }
+
+      // Auto-advance to step 3 (device connects) for new devices
+      goToStep(3);
     });
 
     joinEventSource.addEventListener('error', (error) => {

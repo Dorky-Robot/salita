@@ -2448,6 +2448,7 @@ dependencies = [
  "anyhow",
  "askama",
  "async-graphql",
+ "async-trait",
  "axum",
  "axum-server",
  "chrono",

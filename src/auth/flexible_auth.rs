@@ -6,7 +6,6 @@ use axum::{
 };
 
 use crate::auth::peer_auth::PeerNode;
-use crate::extractors::CurrentUser;
 use crate::state::AppState;
 
 /// Middleware that accepts EITHER session auth OR peer token auth

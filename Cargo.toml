@@ -14,6 +14,7 @@ tokio-stream = "0.1"
 futures = "0.3"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
+async-trait = "0.1"
 
 # GraphQL
 async-graphql = { version = "6", features = ["chrono"] }
@@ -36,6 +37,7 @@ r2d2_sqlite = "0.24"
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5"
 url = "2"
+bcrypt = "0.15"
 rand = "0.8"
 
 # Embedded assets

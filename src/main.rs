@@ -5,6 +5,7 @@ mod error;
 mod extractors;
 mod graphql;
 mod mesh;
+mod pairing;
 mod routes;
 mod state;
 mod tls;

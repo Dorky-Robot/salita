@@ -8,6 +8,7 @@ pub mod error;
 pub mod extractors;
 pub mod graphql;
 pub mod mesh;
+pub mod pairing;
 pub mod routes;
 pub mod state;
 pub mod tls;

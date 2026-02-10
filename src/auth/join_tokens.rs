@@ -21,6 +21,12 @@ pub struct JoinTokenStore {
     pub(crate) tokens: HashMap<String, JoinToken>,
 }
 
+impl Default for JoinTokenStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JoinTokenStore {
     pub fn new() -> Self {
         Self {

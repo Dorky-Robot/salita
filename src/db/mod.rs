@@ -36,6 +36,10 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
         "007_cleanup_duplicate_nodes",
         include_str!("../../migrations/007_cleanup_duplicate_nodes.sql"),
     ),
+    (
+        "008_pairing_state_persistence",
+        include_str!("../../migrations/008_pairing_state_persistence.sql"),
+    ),
 ];
 
 pub fn create_pool(db_path: &Path) -> anyhow::Result<DbPool> {
@@ -170,7 +174,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 7);
+        assert_eq!(count, 8);
 
         // Verify key tables exist
         let tables: Vec<String> = {
@@ -200,7 +204,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 7);
+        assert_eq!(count, 8);
     }
 
     #[test]

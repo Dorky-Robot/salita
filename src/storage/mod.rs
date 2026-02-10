@@ -1,5 +1,7 @@
+mod eviction;
 mod iroh_node;
 mod metadata;
+mod placement;
 mod replication;
 
 use anyhow::Result;
@@ -10,8 +12,10 @@ use std::sync::Arc;
 
 use crate::state::DbPool;
 
+pub use self::eviction::{EvictionManager, EvictionStrategy};
 pub use self::iroh_node::IrohNodeManager;
 pub use self::metadata::{FileMetadata, FileRecord};
+pub use self::placement::{NodeStorageQuota, PlacementStrategy, ReplicationReport};
 pub use self::replication::ReplicationManager;
 
 /// Configuration for distributed storage

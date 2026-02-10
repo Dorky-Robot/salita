@@ -8,6 +8,7 @@ mod mesh;
 mod pairing;
 mod routes;
 mod state;
+mod storage;
 mod tls;
 
 use std::sync::Arc;

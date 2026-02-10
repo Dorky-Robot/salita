@@ -66,6 +66,25 @@ impl Pin {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Constant-time comparison to prevent timing attacks on PIN verification
+    pub fn constant_time_eq(&self, other: &Pin) -> bool {
+        let a = self.0.as_bytes();
+        let b = other.0.as_bytes();
+
+        // If lengths differ, still compare to avoid timing leak
+        let len_match = a.len() == b.len();
+        let max_len = a.len().max(b.len());
+
+        let mut result = 0u8;
+        for i in 0..max_len {
+            let byte_a = a.get(i).copied().unwrap_or(0);
+            let byte_b = b.get(i).copied().unwrap_or(0);
+            result |= byte_a ^ byte_b;
+        }
+
+        len_match && result == 0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -268,6 +287,15 @@ impl PairingState {
         }
     }
 
+    /// Get device IP address (if available)
+    pub fn device_ip(&self) -> Option<&IpAddress> {
+        match self {
+            Self::DeviceConnected { device_ip, .. } => Some(device_ip),
+            Self::PinVerified { device_ip, .. } => Some(device_ip),
+            _ => None,
+        }
+    }
+
     /// Get failure reason (if failed)
     pub fn failure_reason(&self) -> Option<&PairingFailure> {
         match self {
@@ -356,7 +384,8 @@ impl PairingState {
                     return Err(PairingError::TokenExpired);
                 }
 
-                if &pin != provided_pin {
+                // Use constant-time comparison to prevent timing attacks
+                if !pin.constant_time_eq(provided_pin) {
                     return Err(PairingError::InvalidPin);
                 }
 
@@ -579,6 +608,31 @@ mod tests {
         let result = state.verify_pin(&pin, SessionToken::new("session"), now);
 
         assert!(matches!(result, Err(PairingError::MissingNodeId)));
+    }
+
+    #[test]
+    fn test_pin_constant_time_comparison() {
+        // Test equal PINs
+        let pin1 = Pin::new("123456");
+        let pin2 = Pin::new("123456");
+        assert!(pin1.constant_time_eq(&pin2));
+
+        // Test different PINs
+        let pin3 = Pin::new("654321");
+        assert!(!pin1.constant_time_eq(&pin3));
+
+        // Test different lengths
+        let pin4 = Pin::new("12345");
+        assert!(!pin1.constant_time_eq(&pin4));
+
+        // Test empty strings
+        let pin5 = Pin::new("");
+        let pin6 = Pin::new("");
+        assert!(pin5.constant_time_eq(&pin6));
+
+        // Verify it works with the standard PartialEq for correctness check
+        assert_eq!(pin1, pin2);
+        assert_ne!(pin1, pin3);
     }
 
     #[test]

@@ -99,10 +99,13 @@ impl From<PairingError> for AppError {
             PairingError::DeviceAlreadyRegistered => {
                 AppError::BadRequest("Device already registered".into())
             }
-            PairingError::IpConflict { existing_device } => AppError::BadRequest(format!(
-                "IP conflict with existing device: {}",
-                existing_device
-            )),
+            PairingError::IpConflict { existing_device } => {
+                // Log the conflict details internally without exposing to user
+                tracing::warn!("IP conflict with existing device: {}", existing_device);
+                AppError::BadRequest(
+                    "IP address conflict detected - another device is using this address".into(),
+                )
+            }
         }
     }
 }
@@ -129,13 +132,12 @@ pub async fn start_pairing(
         .map_err(|e| AppError::Internal(format!("Failed to save pairing state: {}", e)))?;
 
     // Side effect - log event for audit trail
-    repo.log_event(
-        &token,
-        "created",
-        Some(format!(r#"{{"created_by": "{}"}}"#, req.created_by_node_id)),
-    )
-    .await
-    .ok(); // Don't fail if logging fails
+    let audit_data = serde_json::json!({
+        "created_by": req.created_by_node_id
+    });
+    repo.log_event(&token, "created", Some(audit_data.to_string()))
+        .await
+        .ok(); // Don't fail if logging fails
 
     // Build response
     let expires_at = pairing_state.expires_at().to_rfc3339();
@@ -180,13 +182,12 @@ pub async fn connect_device(
         .map_err(|e| AppError::Internal(format!("Failed to save pairing state: {}", e)))?;
 
     // Side effect - log event
-    repo.log_event(
-        &token,
-        "connected",
-        Some(format!(r#"{{"device_ip": "{}"}}"#, req.device_ip)),
-    )
-    .await
-    .ok();
+    let audit_data = serde_json::json!({
+        "device_ip": req.device_ip
+    });
+    repo.log_event(&token, "connected", Some(audit_data.to_string()))
+        .await
+        .ok();
 
     let response = ConnectDeviceResponse {
         pin: pin.as_str().to_string(),
@@ -207,7 +208,6 @@ pub async fn verify_pin(
     let token = JoinToken::new(&req.token);
     let pin = Pin::new(&req.pin);
     let node_id = NodeId::new(&req.device_node_id);
-    let device_ip = IpAddress::new("0.0.0.0"); // Placeholder, will be updated
     let now = Utc::now();
 
     // Side effect - load state
@@ -217,13 +217,48 @@ pub async fn verify_pin(
         .map_err(|e| AppError::Internal(format!("Failed to load pairing state: {}", e)))?
         .ok_or_else(|| AppError::BadRequest("Pairing token not found".into()))?;
 
+    // Prevent duplicate verification - if already verified or registered, reject
+    match current_state.state_name() {
+        "PinVerified" | "DeviceRegistered" => {
+            return Err(AppError::BadRequest(
+                "Token already verified - cannot verify again".into(),
+            ));
+        }
+        "Failed" => {
+            return Err(AppError::BadRequest(
+                "Pairing failed - cannot verify".into(),
+            ));
+        }
+        _ => {}
+    }
+
+    // Extract device IP from state (set during connect_device)
+    let device_ip = current_state
+        .device_ip()
+        .ok_or_else(|| AppError::BadRequest("Device IP not found in pairing state".into()))?
+        .clone();
+
     // Ensure we have device_node_id in state
     let current_state = if current_state.device_node_id().is_none() {
-        // Update state with node_id
-        current_state
+        // Update state with node_id and save immediately to prevent race condition
+        let updated_state = current_state
             .set_device_node_id(node_id.clone())
-            .map_err(AppError::from)?
+            .map_err(AppError::from)?;
+
+        // Save immediately to claim this node_id for this pairing
+        repo.save(&updated_state)
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to save pairing state: {}", e)))?;
+
+        updated_state
     } else {
+        // Verify the node_id matches what's already in state
+        let existing_node_id = current_state.device_node_id().unwrap();
+        if existing_node_id.as_str() != node_id.as_str() {
+            return Err(AppError::BadRequest(
+                "Node ID mismatch - token already claimed by different device".into(),
+            ));
+        }
         current_state
     };
 
@@ -268,17 +303,13 @@ pub async fn verify_pin(
         .map_err(|e| AppError::Internal(format!("Failed to save pairing state: {}", e)))?;
 
     // Side effect - log success event
-    repo.log_event(
-        &token,
-        "registered",
-        Some(format!(
-            r#"{{"node_id": "{}", "name": "{}"}}"#,
-            node_id.as_str(),
-            req.device_name
-        )),
-    )
-    .await
-    .ok();
+    let audit_data = serde_json::json!({
+        "node_id": node_id.as_str(),
+        "name": req.device_name
+    });
+    repo.log_event(&token, "registered", Some(audit_data.to_string()))
+        .await
+        .ok();
 
     let peer_token_expires_at = Utc::now() + chrono::Duration::days(30);
     let permissions = vec![

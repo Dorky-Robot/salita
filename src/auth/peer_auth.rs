@@ -82,8 +82,11 @@ pub async fn verify_peer_token(
         .ok();
     }
 
-    // Parse permissions
-    let permissions: Vec<String> = serde_json::from_str(&permissions).unwrap_or_default();
+    // Parse permissions - fail if corrupted to prevent security bypass
+    let permissions: Vec<String> = serde_json::from_str(&permissions).map_err(|e| {
+        tracing::error!("Failed to parse token permissions: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Store peer identity in request extensions
     req.extensions_mut().insert(PeerNode {

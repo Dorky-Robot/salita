@@ -51,6 +51,29 @@ impl MutationRoot {
             .clone()
             .unwrap_or_else(|| uuid::Uuid::now_v7().to_string());
 
+        // SECURITY: Check if node_id already exists with different hostname (prevents node takeover)
+        if let Some(ref client_node_id) = input.node_id {
+            let existing_hostname: Result<String, rusqlite::Error> = conn.query_row(
+                "SELECT hostname FROM mesh_nodes WHERE id = ?1 AND is_current = 0",
+                params![client_node_id],
+                |row| row.get(0),
+            );
+
+            if let Ok(existing_hostname) = existing_hostname {
+                // Node ID exists - only allow if same hostname (re-registration)
+                if existing_hostname != input.hostname {
+                    return Ok(NodeOperationResult {
+                        success: false,
+                        message: "Node ID already registered to a different device. Cannot takeover existing node identity.".to_string(),
+                        node: None,
+                        access_token: None,
+                        expires_at: None,
+                        permissions: None,
+                    });
+                }
+            }
+        }
+
         // Check if a device with this hostname already exists (but NOT this node_id)
         // If same node_id is reconnecting, we'll update it (upsert)
         let existing: Result<(String, String), rusqlite::Error> = conn.query_row(

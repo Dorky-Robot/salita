@@ -50,24 +50,36 @@ impl JoinToken {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Pin(pub String);
+pub struct Pin(pub String); // Stores bcrypt hash, not plaintext
 
 impl Pin {
+    /// Create Pin from plaintext - hashes it for secure storage
     pub fn new(pin: impl Into<String>) -> Self {
-        Self(pin.into())
+        let plaintext = pin.into();
+        let hash =
+            bcrypt::hash(&plaintext, bcrypt::DEFAULT_COST).unwrap_or_else(|_| plaintext.clone()); // Fallback to plaintext if hashing fails (shouldn't happen)
+        Self(hash)
     }
 
-    pub fn generate() -> Self {
+    /// Generate a random PIN - returns (plaintext_to_show_user, hashed_pin_to_store)
+    pub fn generate() -> (String, Self) {
         use rand::Rng;
-        let pin = rand::thread_rng().gen_range(100000..=999999);
-        Self(pin.to_string())
+        let plaintext = rand::thread_rng().gen_range(100000..=999999).to_string();
+        let hash =
+            bcrypt::hash(&plaintext, bcrypt::DEFAULT_COST).unwrap_or_else(|_| plaintext.clone());
+        (plaintext, Self(hash))
     }
 
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
-    /// Constant-time comparison to prevent timing attacks on PIN verification
+    /// Verify plaintext PIN against stored hash - constant-time via bcrypt
+    pub fn verify(&self, plaintext: &str) -> bool {
+        bcrypt::verify(plaintext, &self.0).unwrap_or(false)
+    }
+
+    /// Constant-time comparison for hash-to-hash comparison (backward compat)
     pub fn constant_time_eq(&self, other: &Pin) -> bool {
         let a = self.0.as_bytes();
         let b = other.0.as_bytes();
@@ -305,11 +317,12 @@ impl PairingState {
     }
 
     /// Transition: Token → DeviceConnected
+    /// Returns (new_state, plaintext_pin_to_show_user)
     pub fn connect_device(
         self,
         device_ip: IpAddress,
         now: DateTime<Utc>,
-    ) -> Result<(Self, Pin), PairingError> {
+    ) -> Result<(Self, String), PairingError> {
         match self {
             Self::TokenCreated {
                 token, expires_at, ..
@@ -318,18 +331,18 @@ impl PairingState {
                     return Err(PairingError::TokenExpired);
                 }
 
-                let pin = Pin::generate();
+                let (plaintext_pin, hashed_pin) = Pin::generate();
 
                 Ok((
                     Self::DeviceConnected {
                         token,
                         device_ip,
                         device_node_id: None,
-                        pin: pin.clone(),
+                        pin: hashed_pin, // Store hash, not plaintext
                         created_at: now,
                         expires_at,
                     },
-                    pin,
+                    plaintext_pin, // Return plaintext to show user
                 ))
             }
             other => Err(PairingError::InvalidTransition(format!(
@@ -365,9 +378,10 @@ impl PairingState {
     }
 
     /// Transition: DeviceConnected → PinVerified
+    /// Accepts plaintext PIN and verifies against stored hash
     pub fn verify_pin(
         self,
-        provided_pin: &Pin,
+        provided_pin_plaintext: &str,
         session_token: SessionToken,
         now: DateTime<Utc>,
     ) -> Result<Self, PairingError> {
@@ -384,8 +398,8 @@ impl PairingState {
                     return Err(PairingError::TokenExpired);
                 }
 
-                // Use constant-time comparison to prevent timing attacks
-                if !pin.constant_time_eq(provided_pin) {
+                // Verify plaintext PIN against stored hash (constant-time via bcrypt)
+                if !pin.verify(provided_pin_plaintext) {
                     return Err(PairingError::InvalidPin);
                 }
 
@@ -500,16 +514,16 @@ mod tests {
 
     #[test]
     fn test_pin_generation() {
-        let pin1 = Pin::generate();
-        let pin2 = Pin::generate();
+        let (plaintext1, _hash1) = Pin::generate();
+        let (plaintext2, _hash2) = Pin::generate();
 
         // PINs should be 6 digits
-        assert_eq!(pin1.as_str().len(), 6);
-        assert_eq!(pin2.as_str().len(), 6);
+        assert_eq!(plaintext1.len(), 6);
+        assert_eq!(plaintext2.len(), 6);
 
         // PINs should be numeric
-        assert!(pin1.as_str().chars().all(|c| c.is_numeric()));
-        assert!(pin2.as_str().chars().all(|c| c.is_numeric()));
+        assert!(plaintext1.chars().all(|c| c.is_numeric()));
+        assert!(plaintext2.chars().all(|c| c.is_numeric()));
     }
 
     #[test]
@@ -551,12 +565,9 @@ mod tests {
         let state = PairingCoordinator::create_pairing(token, now, 300);
 
         // Cannot verify PIN from TokenCreated state
-        let result = state.verify_pin(&Pin::new("123456"), SessionToken::new("session"), now);
+        let result = state.verify_pin("123456", SessionToken::new("session"), now);
 
-        assert!(matches!(
-            result,
-            Err(PairingError::InvalidTransition { .. })
-        ));
+        assert!(matches!(result, Err(PairingError::InvalidTransition(..))));
     }
 
     #[test]
@@ -588,8 +599,7 @@ mod tests {
         let state = state.set_device_node_id(NodeId::new("node123")).unwrap();
 
         // Try with wrong PIN
-        let wrong_pin = Pin::new("999999");
-        let result = state.verify_pin(&wrong_pin, SessionToken::new("session"), now);
+        let result = state.verify_pin("999999", SessionToken::new("session"), now);
 
         assert!(matches!(result, Err(PairingError::InvalidPin)));
     }
@@ -611,28 +621,26 @@ mod tests {
     }
 
     #[test]
-    fn test_pin_constant_time_comparison() {
-        // Test equal PINs
-        let pin1 = Pin::new("123456");
+    fn test_pin_verification() {
+        // Test correct PIN verification
+        let hashed_pin = Pin::new("123456");
+        assert!(hashed_pin.verify("123456"));
+
+        // Test incorrect PIN
+        assert!(!hashed_pin.verify("654321"));
+
+        // Test different length
+        assert!(!hashed_pin.verify("12345"));
+
+        // Test empty string
+        let empty_pin = Pin::new("");
+        assert!(empty_pin.verify(""));
+        assert!(!empty_pin.verify("123456"));
+
+        // Test that different hashes of same plaintext both verify correctly
         let pin2 = Pin::new("123456");
-        assert!(pin1.constant_time_eq(&pin2));
-
-        // Test different PINs
-        let pin3 = Pin::new("654321");
-        assert!(!pin1.constant_time_eq(&pin3));
-
-        // Test different lengths
-        let pin4 = Pin::new("12345");
-        assert!(!pin1.constant_time_eq(&pin4));
-
-        // Test empty strings
-        let pin5 = Pin::new("");
-        let pin6 = Pin::new("");
-        assert!(pin5.constant_time_eq(&pin6));
-
-        // Verify it works with the standard PartialEq for correctness check
-        assert_eq!(pin1, pin2);
-        assert_ne!(pin1, pin3);
+        assert!(pin2.verify("123456"));
+        // Note: pin1 and pin2 have different hashes (different bcrypt salts) but both verify the same plaintext
     }
 
     #[test]

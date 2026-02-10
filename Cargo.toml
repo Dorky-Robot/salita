@@ -37,6 +37,7 @@ r2d2_sqlite = "0.24"
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5"
 url = "2"
+bcrypt = "0.15"
 rand = "0.8"
 
 # Embedded assets

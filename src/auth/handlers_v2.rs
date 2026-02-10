@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, AppResult};
 use crate::pairing::{
     IpAddress, JoinToken, NodeId, PairingCoordinator, PairingError, PairingRepository, PeerToken,
-    Pin, SessionToken, SqlitePairingRepository,
+    SessionToken, SqlitePairingRepository,
 };
 use crate::state::AppState;
 
@@ -190,7 +190,7 @@ pub async fn connect_device(
         .ok();
 
     let response = ConnectDeviceResponse {
-        pin: pin.as_str().to_string(),
+        pin: pin, // Already a String (plaintext)
         expires_at: new_state.expires_at().to_rfc3339(),
     };
 
@@ -206,7 +206,6 @@ pub async fn verify_pin(
     let repo = SqlitePairingRepository::new(state.db.clone());
 
     let token = JoinToken::new(&req.token);
-    let pin = Pin::new(&req.pin);
     let node_id = NodeId::new(&req.device_node_id);
     let now = Utc::now();
 
@@ -265,7 +264,7 @@ pub async fn verify_pin(
     // Pure domain logic - verify PIN and generate session token
     let session_token = SessionToken::generate();
     let verified_state = current_state
-        .verify_pin(&pin, session_token.clone(), now)
+        .verify_pin(&req.pin, session_token.clone(), now)
         .map_err(|e| {
             // Log failed verification attempt
             let _ = tokio::task::block_in_place(|| {

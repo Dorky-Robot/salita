@@ -97,3 +97,7 @@ cargo run -- mcp
 ## License
 
 [MIT](LICENSE)
+
+## Repository
+
+https://github.com/Dorky-Robot/salita

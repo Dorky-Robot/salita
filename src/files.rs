@@ -68,7 +68,8 @@ pub fn list_files(config: &Config, label: &str, rel_path: &str) -> AppResult<Vec
         .map_err(|e| AppError::Internal(format!("Failed to read directory: {}", e)))?;
 
     for entry in read_dir {
-        let entry = entry.map_err(|e| AppError::Internal(format!("Failed to read entry: {}", e)))?;
+        let entry =
+            entry.map_err(|e| AppError::Internal(format!("Failed to read entry: {}", e)))?;
         let metadata = entry
             .metadata()
             .map_err(|e| AppError::Internal(format!("Failed to read metadata: {}", e)))?;
@@ -84,23 +85,21 @@ pub fn list_files(config: &Config, label: &str, rel_path: &str) -> AppResult<Vec
             format!("{}/{}", rel_path.trim_end_matches('/'), name)
         };
 
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|t| {
-                t.duration_since(std::time::UNIX_EPOCH)
-                    .ok()
-                    .and_then(|d| {
-                        chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
-                            .map(|dt| dt.to_rfc3339())
-                    })
-            });
+        let modified = metadata.modified().ok().and_then(|t| {
+            t.duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| {
+                chrono::DateTime::from_timestamp(d.as_secs() as i64, 0).map(|dt| dt.to_rfc3339())
+            })
+        });
 
         entries.push(FileEntry {
             name,
             path: entry_rel_path,
             is_dir: metadata.is_dir(),
-            size: if metadata.is_file() { metadata.len() } else { 0 },
+            size: if metadata.is_file() {
+                metadata.len()
+            } else {
+                0
+            },
             modified,
         });
     }
@@ -159,23 +158,22 @@ pub fn search_files(
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            let modified = metadata
-                .modified()
-                .ok()
-                .and_then(|t| {
-                    t.duration_since(std::time::UNIX_EPOCH)
-                        .ok()
-                        .and_then(|d| {
-                            chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
-                                .map(|dt| dt.to_rfc3339())
-                        })
-                });
+            let modified = metadata.modified().ok().and_then(|t| {
+                t.duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| {
+                    chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
+                        .map(|dt| dt.to_rfc3339())
+                })
+            });
 
             results.push(FileEntry {
                 name,
                 path: format!("{}:{}", dir_label, rel),
                 is_dir: metadata.is_dir(),
-                size: if metadata.is_file() { metadata.len() } else { 0 },
+                size: if metadata.is_file() {
+                    metadata.len()
+                } else {
+                    0
+                },
                 modified,
             });
         }
@@ -256,23 +254,21 @@ pub fn file_info(config: &Config, label: &str, rel_path: &str) -> AppResult<File
         None
     };
 
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|t| {
-            t.duration_since(std::time::UNIX_EPOCH)
-                .ok()
-                .and_then(|d| {
-                    chrono::DateTime::from_timestamp(d.as_secs() as i64, 0)
-                        .map(|dt| dt.to_rfc3339())
-                })
-        });
+    let modified = metadata.modified().ok().and_then(|t| {
+        t.duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| {
+            chrono::DateTime::from_timestamp(d.as_secs() as i64, 0).map(|dt| dt.to_rfc3339())
+        })
+    });
 
     Ok(FileInfo {
         name,
         path: rel_path.to_string(),
         is_dir: metadata.is_dir(),
-        size: if metadata.is_file() { metadata.len() } else { 0 },
+        size: if metadata.is_file() {
+            metadata.len()
+        } else {
+            0
+        },
         modified,
         mime_type,
     })

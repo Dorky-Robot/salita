@@ -14,7 +14,12 @@ struct NodeInfo {
 }
 
 async fn get_node(State(state): State<HttpState>) -> Json<NodeInfo> {
-    let dirs: Vec<String> = state.config.directories.iter().map(|d| d.label.clone()).collect();
+    let dirs: Vec<String> = state
+        .config
+        .directories
+        .iter()
+        .map(|d| d.label.clone())
+        .collect();
     Json(NodeInfo {
         id: state.node_identity.id.clone(),
         name: state.node_identity.name.clone(),
@@ -24,7 +29,12 @@ async fn get_node(State(state): State<HttpState>) -> Json<NodeInfo> {
 }
 
 async fn list_directories(State(state): State<HttpState>) -> Json<Vec<String>> {
-    let dirs: Vec<String> = state.config.directories.iter().map(|d| d.label.clone()).collect();
+    let dirs: Vec<String> = state
+        .config
+        .directories
+        .iter()
+        .map(|d| d.label.clone())
+        .collect();
     Json(dirs)
 }
 

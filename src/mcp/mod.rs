@@ -2,12 +2,11 @@ pub mod tools;
 pub mod types;
 
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
     tool, tool_handler, tool_router,
     transport::stdio,
-    ServiceExt,
+    ErrorData as McpError, ServerHandler, ServiceExt,
 };
 
 use crate::config::Config;
@@ -37,7 +36,9 @@ impl SalitaMcp {
         self.list_devices_impl()
     }
 
-    #[tool(description = "List files in a directory on any device. Specify device name/ID for remote, omit for local.")]
+    #[tool(
+        description = "List files in a directory on any device. Specify device name/ID for remote, omit for local."
+    )]
     fn list_files(
         &self,
         Parameters(params): Parameters<ListFilesParams>,
@@ -45,7 +46,9 @@ impl SalitaMcp {
         self.list_files_impl(params)
     }
 
-    #[tool(description = "Search for files matching a glob pattern across devices. Supports patterns like '*.rs', '**/*.txt'.")]
+    #[tool(
+        description = "Search for files matching a glob pattern across devices. Supports patterns like '*.rs', '**/*.txt'."
+    )]
     fn search_files(
         &self,
         Parameters(params): Parameters<SearchFilesParams>,
@@ -53,7 +56,9 @@ impl SalitaMcp {
         self.search_files_impl(params)
     }
 
-    #[tool(description = "Read the content of a file from any device. Returns text content or binary file info.")]
+    #[tool(
+        description = "Read the content of a file from any device. Returns text content or binary file info."
+    )]
     fn read_file(
         &self,
         Parameters(params): Parameters<ReadFileParams>,

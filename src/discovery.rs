@@ -129,12 +129,7 @@ impl MdnsDiscovery {
             .iter()
             .next()
             .map(|ip| ip.to_string())
-            .or_else(|| {
-                info.get_addresses()
-                    .iter()
-                    .next()
-                    .map(|ip| ip.to_string())
-            })
+            .or_else(|| info.get_addresses().iter().next().map(|ip| ip.to_string()))
             .unwrap_or_default();
 
         if endpoint.is_empty() {

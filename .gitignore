@@ -15,8 +15,6 @@
 .idea/
 .vscode/
 
-# Generated CSS (rebuilt by build.rs)
-assets/css/output.css
 
 # Node (Playwright only)
 /node_modules

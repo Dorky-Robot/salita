@@ -1,47 +1,27 @@
 [package]
 name = "salita"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "A personal home server"
+description = "A home device mesh with MCP interface"
 license = "MIT"
 repository = "https://github.com/Dorky-Robot/salita"
 
+[[bin]]
+name = "salita"
+path = "src/main.rs"
+
 [dependencies]
-# Web framework
-axum = { version = "0.8", features = ["multipart"] }
+# HTTP server
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
-futures = "0.3"
-tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors"] }
-async-trait = "0.1"
 
-# GraphQL
-async-graphql = { version = "6", features = ["chrono"] }
-
-# TLS
-axum-server = { version = "0.7", features = ["tls-rustls"] }
-rustls-pemfile = "2"
-rcgen = { version = "0.13", features = ["pem"] }
-plist = "1"
-
-# Templates
-askama = "0.12"
+# MCP
+rmcp = { version = "0.17", features = ["server", "transport-io"] }
 
 # Database
 rusqlite = { version = "0.31", features = ["bundled"] }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
-
-# Auth
-webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
-webauthn-rs-proto = "0.5"
-url = "2"
-bcrypt = "0.15"
-rand = "0.8"
-
-# Embedded assets
-rust-embed = { version = "8", features = ["axum"] }
 
 # Config
 clap = { version = "4", features = ["derive"] }
@@ -49,22 +29,30 @@ toml = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# QR / LAN discovery
-qrcode = "0.14"
-local-ip-address = "0.6"
+# Discovery
+mdns-sd = "0.11"
+flume = "0.11"
+
+# Peer HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# File search
+glob = "0.3"
+
+# JSON Schema for MCP tool params
+schemars = "0.8"
 
 # Utilities
 uuid = { version = "1", features = ["v7"] }
 chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 dirs = "5"
-mime_guess = "2"
 hostname = "0.4"
+mime_guess = "2"
 
 [dev-dependencies]
 tempfile = "3"
-reqwest = { version = "0.11", features = ["json", "cookies"] }
 tokio-test = "0.4"

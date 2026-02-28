@@ -1,41 +1,24 @@
-# Salita Configuration
+# Salita configuration example
 # Copy to ~/.salita/config.toml and customize
 
 [server]
 host = "0.0.0.0"
 port = 6969
-# Site URL for LAN access (used as the WebAuthn origin).
-# Set this to your .local hostname so passkeys work from other devices.
-# Default: http://localhost:{port}
-# site_url = "http://salita.local:6969"
 
-[database]
-# Path to SQLite database file
-# Default: ~/.salita/salita.db
-# path = "/path/to/salita.db"
+# Maximum bytes to read from a single file via MCP (default: 10MB)
+# max_read_bytes = 10485760
 
-[storage]
-# Path for uploaded files
-# Default: ~/.salita/uploads/
-# path = "/path/to/uploads/"
+# Directories to expose to the mesh
+# Each directory has a label (used in API calls) and a filesystem path
 
-[auth]
-# Session cookie name
-cookie_name = "salita_session"
-# Session duration in hours
-session_hours = 720  # 30 days
-# Disable localhost authentication bypass
-# Set to true to require authentication even from localhost (useful for testing)
-# Default: false
-# disable_localhost_bypass = false
+[[directories]]
+label = "documents"
+path = "~/Documents"
 
-[tls]
-# Enable TLS/HTTPS mode
-# When enabled, runs HTTPS on main port and HTTP on http_port (for certificate trust flow)
-enabled = false
-# HTTP port for certificate trust/onboarding (only used when TLS is enabled)
-http_port = 6970
+[[directories]]
+label = "projects"
+path = "~/Projects"
 
-# Instance name used in TLS certificates
-# Default: "salita"
-instance_name = "salita"
+# [[directories]]
+# label = "photos"
+# path = "~/Photos"

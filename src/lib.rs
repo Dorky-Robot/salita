@@ -1,14 +1,9 @@
-// Library exports for Salita
-// This allows integration tests and external code to use Salita modules
-
-pub mod auth;
 pub mod config;
 pub mod db;
+pub mod discovery;
 pub mod error;
-pub mod extractors;
-pub mod graphql;
-pub mod mesh;
-pub mod pairing;
-pub mod routes;
-pub mod state;
-pub mod tls;
+pub mod files;
+pub mod http;
+pub mod mcp;
+pub mod node;
+pub mod peer_client;

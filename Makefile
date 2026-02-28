@@ -7,7 +7,7 @@ dev:
 	@echo "Press Ctrl+C to stop"
 	@echo ""
 	@pkill -9 -f "target/debug/salita" 2>/dev/null || true
-	@find src templates Cargo.toml -type f | entr -rn cargo run
+	@find src Cargo.toml -type f | entr -rn cargo run
 
 # Build release version
 build:

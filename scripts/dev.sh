@@ -4,7 +4,7 @@
 set -e
 
 echo "🔧 Starting Salita in development mode with live reloading..."
-echo "📝 Watching for changes in src/ and templates/"
+echo "📝 Watching for changes in src/"
 echo ""
 
 # Kill any existing salita processes
@@ -34,4 +34,4 @@ restart_server() {
 start_server
 
 # Watch for changes and restart
-find src templates -type f \( -name "*.rs" -o -name "*.html" -o -name "*.toml" \) | entr -r sh -c 'pkill -9 -f "target/debug/salita" 2>/dev/null || true; sleep 1; cargo run'
+find src -type f \( -name "*.rs" -o -name "*.html" -o -name "*.toml" \) | entr -r sh -c 'pkill -9 -f "target/debug/salita" 2>/dev/null || true; sleep 1; cargo run'

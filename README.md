@@ -1,55 +1,97 @@
 # Salita
 
-A personal home server. Your own corner of the internet.
+A home device mesh with MCP interface. Every machine runs a node, they auto-discover each other via mDNS, and AI agents connect via MCP to browse, search, and read files across all devices.
 
-Salita is a self-hosted web platform for micro-blogging, media sharing, and social features — all under your control. No passwords, no third-party auth providers. Just passkeys.
+## How It Works
 
-## Features
+```
+Claude Code ──(stdio/MCP)──► salita mcp ──► local filesystem
+                                         ──► local SQLite DB
+                                         ──► peer HTTP APIs
 
-- **Passkey authentication** — passwordless login via Touch ID, Face ID, or security keys (WebAuthn)
-- **Micro-blogging** — posts with images, reactions, and comments
-- **Single binary** — one Rust binary, SQLite database, zero external services
-- **Self-contained** — all data lives in `~/.salita/` by default
+salita serve (daemon on each machine):
+  - HTTP server for peer file access
+  - mDNS registration + discovery
+```
+
+Two modes: `salita serve` (HTTP daemon + mDNS) and `salita mcp` (MCP stdio server).
 
 ## Quick Start
 
 ```bash
-cargo build --release
-./target/release/salita
+cargo install --path .
+
+# Configure directories to expose
+mkdir -p ~/.salita
+cp config.example.toml ~/.salita/config.toml
+# Edit config.toml to set your directories
+
+# Start the daemon
+salita serve
+
+# Or use as an MCP server for Claude Code
+salita mcp
 ```
 
-Open `http://localhost:6969` and create your admin account with a passkey.
+## Claude Code Integration
+
+Add to your Claude Code MCP config:
+
+```json
+{
+  "mcpServers": {
+    "salita": {
+      "type": "stdio",
+      "command": "salita",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_devices` | All mesh devices + online/offline status |
+| `list_files` | List files in a directory on any device |
+| `search_files` | Glob search across devices |
+| `read_file` | Read file content from any device |
+| `file_info` | File metadata (size, type, modified) |
 
 ## Configuration
 
-Copy `config.example.toml` to `~/.salita/config.toml` to customize, or use CLI flags:
+```toml
+[server]
+host = "0.0.0.0"
+port = 6969
 
-```bash
-salita --port 8080 --data-dir /path/to/data
+[[directories]]
+label = "documents"
+path = "~/Documents"
+
+[[directories]]
+label = "projects"
+path = "~/Projects"
 ```
+
+Files are addressed by `(device, directory_label, relative_path)` — absolute paths never cross the wire.
 
 ## Tech Stack
 
-- **Rust** + **Axum** — web framework
-- **SQLite** — database (WAL mode, r2d2 pool)
-- **Askama** — templates
-- **WebAuthn-rs** — passkey authentication
-- **HTMX** + **Tailwind CSS** — frontend
+- **Rust** + **Axum** — HTTP server
+- **rmcp** — MCP SDK (stdio transport)
+- **SQLite** — device registry (WAL mode, r2d2 pool)
+- **mdns-sd** — zero-config peer discovery
+- **reqwest** — peer HTTP client
 
 ## Development
 
 ```bash
-# Run in development
-cargo run
-
-# Run tests
+cargo build
 cargo test
-
-# Run E2E tests (headless)
-npx playwright test --project=chromium
-
-# Run passkey E2E tests (requires Touch ID)
-npx playwright test --project=passkey --headed
+cargo run -- serve
+cargo run -- mcp
 ```
 
 ## License

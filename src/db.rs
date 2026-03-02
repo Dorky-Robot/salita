@@ -5,7 +5,21 @@ use std::path::Path;
 
 pub type DbPool = Pool<SqliteConnectionManager>;
 
-pub const MIGRATIONS: &[(&str, &str)] = &[("001_init", include_str!("../migrations/001_init.sql"))];
+pub const MIGRATIONS: &[(&str, &str)] = &[
+    ("001_init", include_str!("../migrations/001_init.sql")),
+    (
+        "002_content_index",
+        include_str!("../migrations/002_content_index.sql"),
+    ),
+    (
+        "003_catalog_origin",
+        include_str!("../migrations/003_catalog_origin.sql"),
+    ),
+    (
+        "004_content_previews",
+        include_str!("../migrations/004_content_previews.sql"),
+    ),
+];
 
 pub fn create_pool(db_path: &Path) -> anyhow::Result<DbPool> {
     if let Some(parent) = db_path.parent() {
@@ -95,7 +109,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count, MIGRATIONS.len() as i64);
 
         let tables: Vec<String> = {
             let mut stmt = conn
@@ -120,6 +134,6 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count, MIGRATIONS.len() as i64);
     }
 }

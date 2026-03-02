@@ -1,12 +1,16 @@
+mod catalog_sync;
 mod config;
 mod db;
 mod discovery;
 mod error;
 mod files;
 mod http;
+mod indexer;
+mod iroh_node;
 mod mcp;
 mod node;
 mod peer_client;
+mod thumbnail;
 
 use clap::Parser;
 use rusqlite::params;
@@ -72,7 +76,42 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Command::Serve { .. } => {
+            // Start iroh node for mesh catalog replication
+            let iroh = iroh_node::IrohNode::start(&data_dir).await?;
+            tracing::info!("iroh node ID: {}", iroh.endpoint.id());
+
+            // Start catalog sync
+            let catalog = catalog_sync::CatalogSync::new(
+                iroh.docs.clone(),
+                iroh.blobs.clone(),
+                pool.clone(),
+                node_identity.id.clone(),
+            )
+            .await?;
+            let catalog = std::sync::Arc::new(tokio::sync::Mutex::new(catalog));
+
+            // Run initial sync from existing doc entries
+            {
+                let c = catalog.lock().await;
+                if let Err(e) = c.initial_sync().await {
+                    tracing::warn!("Initial catalog sync failed: {e}");
+                }
+            }
+
+            // Spawn background subscriber for live updates
+            let catalog_bg = catalog.clone();
+            tokio::spawn(async move {
+                if let Err(e) = catalog_sync::CatalogSync::subscribe_and_ingest(catalog_bg).await {
+                    tracing::error!("Catalog subscription ended: {e}");
+                }
+            });
+
+            // Start indexer (with catalog sync for publishing)
+            indexer::spawn_indexer(config.clone(), pool.clone(), Some(catalog.clone()));
             http::run_serve(config, pool, node_identity).await?;
+
+            // Cleanup
+            iroh.shutdown().await?;
         }
         Command::Mcp => {
             mcp::run_mcp(config, pool).await?;

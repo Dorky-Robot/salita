@@ -1,9 +1,13 @@
+pub mod catalog_sync;
 pub mod config;
 pub mod db;
 pub mod discovery;
 pub mod error;
 pub mod files;
 pub mod http;
+pub mod indexer;
+pub mod iroh_node;
 pub mod mcp;
 pub mod node;
 pub mod peer_client;
+pub mod thumbnail;

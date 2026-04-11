@@ -42,6 +42,19 @@ glob = "0.3"
 # JSON Schema for MCP tool params
 schemars = "0.8"
 
+# Content indexing
+blake3 = "1"
+image = "0.25"
+imagepipe = "0.5"
+kamadak-exif = "0.6"
+
+# iroh mesh replication
+iroh = "0.96"
+iroh-blobs = { version = "0.98", features = ["fs-store"] }
+iroh-docs = "0.96"
+iroh-gossip = "0.96"
+futures-lite = "2"
+
 # Utilities
 uuid = { version = "1", features = ["v7"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -53,6 +66,7 @@ dirs = "5"
 hostname = "0.4"
 mime_guess = "2"
 
-[dev-dependencies]
 tempfile = "3"
+
+[dev-dependencies]
 tokio-test = "0.4"

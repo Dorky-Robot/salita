@@ -1,3 +1,4 @@
+mod content;
 mod files;
 mod mesh;
 
@@ -42,6 +43,7 @@ pub async fn run_serve(
         .route("/health", get(health))
         .merge(mesh::router())
         .merge(files::router())
+        .merge(content::router())
         .with_state(state);
 
     let addr: std::net::SocketAddr =

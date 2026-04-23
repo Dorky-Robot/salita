@@ -1,6 +1,7 @@
 {
   "private": true,
   "name": "salita-e2e",
+  "license": "MIT OR Apache-2.0",
   "description": "E2E tests for Salita (Playwright only — no Node.js runtime needed)",
   "scripts": {
     "test:e2e": "npx playwright test",
